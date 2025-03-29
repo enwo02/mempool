@@ -26,6 +26,7 @@ package mempool_pkg;
   localparam integer unsigned AxiTileIdWidth    = AxiCoreIdWidth+1; // + 1 for cache
   localparam integer unsigned AxiDataWidth      = `ifdef AXI_DATA_WIDTH `AXI_DATA_WIDTH `else 0 `endif;
   localparam integer unsigned AxiLiteDataWidth  = 32;
+  localparam integer unsigned PartitionDataWidth  = 8;
 
   // Extension support
   localparam bit RVV        = `ifdef RVV `RVV `else 0 `endif;
@@ -72,6 +73,11 @@ package mempool_pkg;
   localparam integer unsigned TCDMAddrWidth    = TCDMAddrMemWidth + idx_width(NumBanksPerGroup);
   localparam integer unsigned TCDMTileAddrWidth= TCDMAddrMemWidth + idx_width(NumBanksPerTile);
 
+
+  // Dynamic Heap
+  localparam int unsigned HeapSeqMemSizePerCore = 512;
+  // localparam int unsigned HeapSeqMemSizePerCore = `ifdef HEAP_SEQ_MEM_SIZE `SEQ_MEM_SIZE `else 512 `endif;
+  localparam int unsigned HeapSeqMemSizePerTile = NumCoresPerTile * NumFUsPerCore * HeapSeqMemSizePerCore;
   // L2
   localparam integer unsigned L2Size           = `ifdef L2_SIZE `L2_SIZE `else 0 `endif; // [B]
 

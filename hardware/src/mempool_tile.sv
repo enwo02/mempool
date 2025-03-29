@@ -50,7 +50,11 @@ module mempool_tile
   output `STRUCT_PORT(axi_tile_req_t)                                             axi_mst_req_o,
   input  `STRUCT_PORT(axi_tile_resp_t)                                            axi_mst_resp_i,
   // Wake up interface
-  input  logic              [NumCoresPerTile-1:0]                                 wake_up_i
+  input  logic              [NumCoresPerTile-1:0]                                 wake_up_i,
+  // Partition selection
+  input logic [3:0][DataWidth-1:0] start_addr_scheme_i,
+  input logic [3:0][PartitionDataWidth-1:0] allocated_size_i,
+  input logic [3:0][PartitionDataWidth-1:0] partition_sel_i
 );
 
   /****************
@@ -852,10 +856,15 @@ module mempool_tile
         .NumTiles          (NumTiles         ),
         .NumBanksPerTile   (NumBanksPerTile  ),
         .Bypass            (0                ),
-        .SeqMemSizePerTile (SeqMemSizePerTile)
+        .SeqMemSizePerTile (SeqMemSizePerTile),
+        .MemSizePerTile    (8*4*256    ),
+        .MemSizePerRow     (4*4*256    )
       ) i_address_scrambler (
         .address_i (snitch_data_qaddr[c][p]    ),
-        .address_o (snitch_data_qaddr_scrambled)
+        .address_o (snitch_data_qaddr_scrambled),
+        .group_factor_i(partition_sel_i),
+        .allocated_size_i   (allocated_size_i),
+        .start_addr_scheme_i(start_addr_scheme_i)
       );
 
       if (!TrafficGeneration) begin: gen_tcdm_shim

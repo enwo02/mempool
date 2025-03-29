@@ -48,3 +48,6 @@ l2_banks ?= 4
 
 # Number of DMA backends in each group
 dmas_per_group ?= 1 # Brust Length = 16
+
+# dynamic heap
+heap_seq_mem_size ?= 512

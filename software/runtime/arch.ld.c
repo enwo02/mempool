@@ -29,6 +29,7 @@ SECTIONS {
 
   // Heap size (start address is re-assigned in link.ld)
   __heap_start = __l1_start;
+  __heap_seq_start = __l1_start + (NUM_CORES * 2 * L1_BANK_SIZE);
   __heap_end = __l1_end;
 
   // Hardware register location
@@ -57,6 +58,24 @@ SECTIONS {
   wake_up_tile_g5_reg = 0x40000054;
   wake_up_tile_g6_reg = 0x40000058;
   wake_up_tile_g7_reg = 0x4000005C;
+
+  partition_reg       = 0x40000060;
+
+  start_addr_scheme0_reg = 0x40000064;
+  start_addr_scheme1_reg = 0x40000068;
+  start_addr_scheme2_reg = 0x4000006C;
+  start_addr_scheme3_reg = 0x40000070;
+
+  partition1_reg       = 0x40000074;
+  partition2_reg       = 0x40000078;
+  partition3_reg       = 0x4000007C;
+
+  allocated_size0_reg = 0x40000080;
+  allocated_size1_reg = 0x40000084;
+  allocated_size2_reg = 0x40000088;
+  allocated_size3_reg = 0x4000008C;
+
+  dma_mode_reg        = 0x40000090;
 
   fake_uart              = 0xC0000000;
 }

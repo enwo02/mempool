@@ -38,6 +38,9 @@ l1_bank_size ?= 1024
 # (must be a power of two)
 seq_mem_size ?= 512
 
+# Heap dynamic region
+heap_seq_mem_size ?= 2048
+
 # Size of stack in sequential memory per core (in bytes)
 stack_size ?= 512
 

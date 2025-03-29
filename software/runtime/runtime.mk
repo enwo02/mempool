@@ -96,6 +96,9 @@ DEFINES += -DLOG2_SEQ_MEM_SIZE=$(shell awk 'BEGIN{print log($(seq_mem_size))/log
 DEFINES += -DSTACK_SIZE=$(stack_size)
 DEFINES += -DLOG2_STACK_SIZE=$(shell awk 'BEGIN{print log($(stack_size))/log(2)}')
 DEFINES += -DXQUEUE_SIZE=$(xqueue_size)
+DEFINES += -DHEAP_SEQ_MEM_SIZE=$(heap_seq_mem_size)
+DEFINES += -DLOG2_HEAP_SEQ_MEM_SIZE=$(shell awk 'BEGIN{print log($(heap_seq_mem_size))/log(2)}')
+
 ifdef terapool
 	DEFINES += -DNUM_SUB_GROUPS_PER_GROUP=$(num_sub_groups_per_group)
 	DEFINES += -DNUM_CORES_PER_SUB_GROUP=$(shell awk 'BEGIN{print ($(num_cores)/$(num_groups))/$(num_sub_groups_per_group)}')
