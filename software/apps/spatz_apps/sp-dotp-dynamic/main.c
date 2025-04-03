@@ -16,6 +16,7 @@
 
 // Author: Diyou Shen     <dishen@student.ethz.ch>
 //         Matteo Perotti <mperotti@iis.ee.ethz.ch>
+//         Elio Wanner    <ewanner@student.ethz.ch>
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -29,6 +30,7 @@
 #include "alloc.h"
 #include "runtime.h"
 #include "synchronization.h"
+
 
 
 uint32_t timer = (uint32_t)-1;
@@ -81,7 +83,16 @@ int main() {
   const uint32_t dim_per_round = max_vl * active_cores;
   const uint32_t round = (dim > dim_per_round) ? dim/dim_per_round : 1;
 
+  extern uint32_t __l1_alloc_base; // Defined in the linker script
+  extern uint32_t __l1_end;       // Defined in the linker script
+  extern alloc_t alloc_l1;
+
+  // Initialize the allocator
+  alloc_init(&alloc_l1, (void *)&__l1_alloc_base, (uint32_t)&__l1_end - (uint32_t)&__l1_alloc_base);
+
   if (cid == 0) {
+    printf("In sp-dotp-dynamic script\n");
+    alloc_dump(&alloc_l1);
     printf("dim: %d, dim_per_round: %d\n", dim, dim_per_round);
     printf("lmul:%u, dim:%u, rnd:%u\n", lmul, dim_per_round, round);
   }
@@ -97,15 +108,44 @@ int main() {
   // Wait for all cores to finish
   mempool_barrier(num_cores);
 
+  float *a = NULL;
+  float *b = NULL;
+
   // Initialize matrices
   if (cid == 0) {
+    // Dynamic memory allocation (non-scrambled region)----------------------
+    a = (float *)simple_malloc(dim * sizeof(float));
+    b = (float *)simple_malloc(dim * sizeof(float));
+
+    printf("Allocated a at %08X with size %u\n", a, dim);
+    printf("Allocated b at %08X with size %u\n", b, dim);
+    
+    // Now move the data
     dma_memcpy_blocking(a, dotp_A_dram, dim * sizeof(float));
     dma_memcpy_blocking(b, dotp_B_dram, dim * sizeof(float));
+
+    alloc_dump(&alloc_l1);
+
+
+    // for (uint32_t i = 0; i < dim; i++) {
+    //     printf("a[%u] = %f, b[%u] = %f\n", i, ((float *)a)[i], i, ((float *)b)[i]);
+    // }
+  
+
+    // Dynamic memory allocation (scrambled region)--------------------------
+    
+
+    // Static memory allocation----------------------------------------------
+    // dma_memcpy_blocking(a, dotp_A_dram, dim * sizeof(float));
+    // dma_memcpy_blocking(b, dotp_B_dram, dim * sizeof(float));
     for (uint32_t i = 0; i <= active_cores; i ++) {
       result[i] = 0;
     }
     printf("finish copy\n");
   }
+
+  // Wait for all cores to finish
+  mempool_barrier(num_cores);
 
   float *a_int = a + dim_core * cid;
   float *b_int = b + dim_core * cid;
@@ -174,6 +214,7 @@ int main() {
   if (cid == 0) {
     uint32_t *gold = (uint32_t *) &dotp_result;
     printf("gold:%x\n", (uint32_t) *gold);
+    printf("result: %p, active_cores: %d\n", result, active_cores);
     float *output = result + active_cores;
     uint32_t *calc = (uint32_t *) output;
     printf("calc:%x\n", (uint32_t) *calc);

@@ -73,6 +73,23 @@ dotp: log_clean
 		config=$(config) make -C $(hw_path) $(sim) app=spatz_apps/sp-dotp; \
 	fi
 
+# Dynamic allocation dotp kernel
+.PHONY: dotp-dyn
+dotp-dyn: log_clean
+	$(python) $(ROOT_DIR)/gen_config.py "dotp" 32 $(size) $(cores)
+	$(python) $(app_path)/spatz_apps/sp-dotp-dynamic/script/gen_data.py --cfg $(ROOT_DIR)/dotp.json
+	config=$(config) make -C $(app_path) spatz_apps/sp-dotp-dynamic >> $(ROOT_DIR)/buildsw.log
+	if [ "$(log)" = "true" ]; then \
+		config=$(config) make -C $(hw_path) $(sim) app=spatz_apps/sp-dotp-dynamic >> $(ROOT_DIR)/result.log; \
+		if [ "$(outfile)" = "false" ]; then \
+			$(python) $(ROOT_DIR)/write_result.py $(ROOT_DIR)/result.log $(ROOT_DIR)/results/$(config)_dotp_$(cores).txt $(config); \
+		else \
+			$(python) $(ROOT_DIR)/write_result.py $(ROOT_DIR)/result.log $(ROOT_DIR)/results/$(outfile).txt $(config); \
+		fi \
+	else \
+		config=$(config) make -C $(hw_path) $(sim) app=spatz_apps/sp-dotp-dynamic; \
+	fi
+
 .PHONY: dotp-opt
 dotp-opt: log_clean
 	$(python) $(ROOT_DIR)/gen_config.py "dotp" 32 $(size) $(cores)
