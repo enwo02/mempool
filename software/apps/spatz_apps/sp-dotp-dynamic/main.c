@@ -14,6 +14,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// To run: make -C spatz_apps/auto_benchmark dotp-dyn config=minpool_spatz4_fpu log=false sim=sim cores=4
+
 // Author: Diyou Shen     <dishen@student.ethz.ch>
 //         Matteo Perotti <mperotti@iis.ee.ethz.ch>
 //         Elio Wanner    <ewanner@student.ethz.ch>
@@ -28,6 +30,7 @@
 #include "encoding.h"
 #include "printf.h"
 #include "alloc.h"
+#include "alloc_partition.h"
 #include "runtime.h"
 #include "synchronization.h"
 
@@ -91,8 +94,13 @@ int main() {
   static float *a = NULL;
   static float *b = NULL;
 
+  // Sequential heap parameters
+  uint32_t GF_CLUSTER = 4;
+  uint32_t NUM_PARTITION = 1;
+
   // Initialize the allocator
   alloc_init(&alloc_l1, (void *)&__heap_start, (uint32_t)&__l1_end - (uint32_t)&__heap_start);
+  mempool_dynamic_heap_alloc_init(cid, GF_CLUSTER);
 
   if (cid == 0) {
     printf("In sp-dotp-dynamic script\n");
@@ -116,17 +124,19 @@ int main() {
   if (cid == 0) {
     // For static allocation just comment all except the moving of the data
 
-    // Dynamic memory allocation (non-scrambled region)----------------------
-    a = (float *)simple_malloc(dim * sizeof(float));
-    b = (float *)simple_malloc(dim * sizeof(float));
+    // // Dynamic memory allocation (non-scrambled region)----------------------
+    // a = (float *)simple_malloc(dim * sizeof(float));
+    // b = (float *)simple_malloc(dim * sizeof(float));
 
-    printf("Allocated a at %08X with size %u\n", a, dim * sizeof(float));
-    printf("Allocated b at %08X with size %u\n", b, dim * sizeof(float));
-
-    alloc_dump(&alloc_l1);
+    // alloc_dump(&alloc_l1);
 
     // Dynamic memory allocation (scrambled region)--------------------------
-    // TODO
+    alloc_matrix(a, dim * sizeof(float), GF_CLUSTER,  NUM_PARTITION);
+    alloc_matrix(b, dim * sizeof(float), GF_CLUSTER,  NUM_PARTITION);
+
+    // Print the addresses of the allocated memory
+    printf("Allocated a at %08X with size %u\n", a, dim * sizeof(float));
+    printf("Allocated b at %08X with size %u\n", b, dim * sizeof(float));
 
     // Moving the data
     dma_memcpy_blocking(a, dotp_A_dram, dim * sizeof(float));
