@@ -34,7 +34,7 @@
 #include "runtime.h"
 #include "synchronization.h"
 
-
+partition_status_t volatile partition_status[NUM_PART_REGION] __attribute__((section(".l1")));
 
 uint32_t timer = (uint32_t)-1;
 // 32-bit dot-product: a * b
@@ -86,27 +86,43 @@ int main() {
   const uint32_t dim_per_round = max_vl * active_cores;
   const uint32_t round = (dim > dim_per_round) ? dim/dim_per_round : 1;
 
-  extern uint32_t __heap_start;    // Start of interleaved heap
-  extern uint32_t __l1_end;        // End of total L1 memory (and sequential heap)
+  extern uint32_t __heap_start;     // Start of interleaved heap
+  extern uint32_t __heap_seq_start; // Start of sequential heap
+  extern uint32_t __l1_end;         // End of total L1 memory (and sequential heap)
   extern alloc_t alloc_l1;
 
-  // Define globally
-  static float *a = NULL;
-  static float *b = NULL;
+  // Define input vectors globally
+  static float *volatile *a = NULL;
+  static float *volatile *b = NULL;
+
+  bool use_sequential_region = true;
 
   // Sequential heap parameters
-  uint32_t GF_CLUSTER = 4;
-  uint32_t NUM_PARTITION = 1;
+  uint32_t group_factor = 4;
+  uint32_t core_group_factor = 4;
+  uint32_t num_partition = mempool_get_tile_count() / group_factor;
 
   // Initialize the allocator
   alloc_init(&alloc_l1, (void *)&__heap_start, (uint32_t)&__l1_end - (uint32_t)&__heap_start);
-  mempool_dynamic_heap_alloc_init(cid, GF_CLUSTER);
 
-  if (cid == 0) {
+  // Initialize the interleaved heap
+  mempool_dynamic_heap_alloc_init(cid, group_factor);
+  // mempool_reset_heap(cid, __heap_seq_start);                                    // interleaved heap
+  mempool_dynamic_heap_alloc_reset(cid, core_group_factor, __heap_seq_start);      // sequential heap
+
+  if (cid == 0){
     printf("In sp-dotp-dynamic script\n");
     alloc_dump(&alloc_l1);
     printf("dim: %d, dim_per_round: %d\n", dim, dim_per_round);
     printf("lmul:%u, dim:%u, rnd:%u\n", lmul, dim_per_round, round);
+  }
+
+  // init partition info
+  if (cid == 0){
+      for (uint32_t i=0; i<NUM_PART_REGION; ++i){
+          partition_status[i].status    = 0;
+          partition_status[i].data_addr = NULL;
+      }
   }
 
   // Initialize multicore barrier
@@ -122,21 +138,19 @@ int main() {
 
   // Initialize matrices
   if (cid == 0) {
-    // For static allocation just comment all except the moving of the data
-
-    // // Dynamic memory allocation (non-scrambled region)----------------------
-    // a = (float *)simple_malloc(dim * sizeof(float));
-    // b = (float *)simple_malloc(dim * sizeof(float));
-
-    // alloc_dump(&alloc_l1);
-
-    // Dynamic memory allocation (scrambled region)--------------------------
-    alloc_matrix(a, dim * sizeof(float), GF_CLUSTER,  NUM_PARTITION);
-    alloc_matrix(b, dim * sizeof(float), GF_CLUSTER,  NUM_PARTITION);
+    if (use_sequential_region){
+      // Dynamic memory allocation (sequential region)--------------------------
+      alloc_matrix(&a, dim, group_factor, num_partition);
+      alloc_matrix(&b, dim, group_factor, num_partition);
+    } else{
+      // Dynamic memory allocation (interleaved region)----------------------
+      a = (float *)simple_malloc(dim * sizeof(float));
+      b = (float *)simple_malloc(dim * sizeof(float));      
+    }
 
     // Print the addresses of the allocated memory
-    printf("Allocated a at %08X with size %u\n", a, dim * sizeof(float));
-    printf("Allocated b at %08X with size %u\n", b, dim * sizeof(float));
+    printf("Allocated a at %08X with size (nr of elements) %u\n", a, dim);
+    printf("Allocated b at %08X with size (nr of elements) %u\n", b, dim);
 
     // Moving the data
     dma_memcpy_blocking(a, dotp_A_dram, dim * sizeof(float));
@@ -219,6 +233,11 @@ int main() {
     uint32_t utilization = performance / (2 * active_cores * N_FPU);
 
     printf("\n----- (%dx%d) sp fdotp -----\n", dim, dim);
+    if (use_sequential_region) {
+      printf("Using sequential region\n");
+    } else {
+      printf("Using interleaved region\n");
+    }
     printf("The execution took %u cycles.\n", timer);
     printf("The performance is %u OP/1000cycle (%u%%o utilization).\n",
            performance, utilization);
@@ -227,7 +246,6 @@ int main() {
   if (cid == 0) {
     uint32_t *gold = (uint32_t *) &dotp_result;
     printf("gold:%x\n", (uint32_t) *gold);
-    printf("result: %p, active_cores: %d\n", result, active_cores);
     float *output = result + active_cores;
     uint32_t *calc = (uint32_t *) output;
     printf("calc:%x\n", (uint32_t) *calc);

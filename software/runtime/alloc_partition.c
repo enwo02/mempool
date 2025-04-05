@@ -9,7 +9,7 @@
 #include "runtime.h"
 #include "printf.h"
 
-partition_status_t volatile partition_status[NUM_PART_REGION];
+extern partition_status_t volatile partition_status[NUM_PART_REGION];
 // partition_status_t volatile partition_status[NUM_PART_REGION] __attribute__((section(".l1")));
 // ------ Static variable ------ //
 // partition_status_t volatile partition_status[NUM_PART_REGION] __attribute__((section(".l1")));
