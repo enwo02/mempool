@@ -139,6 +139,13 @@ module address_scrambler #(
     // Main logic of the address scrambler.
     // ---------------------------------------------------------------------------
     always_comb begin
+      // $display("[scrambler debug] address_i: %h -> address_o: %h", address_i, address_o);
+      // $display("[scrambler debug] address_i: %h  start_addr_scheme_i[0]: %h", address_i, start_addr_scheme_i[0]);
+      // $display("[scrambler debug] address_i: %h  start_addr_scheme_i[1]: %h", address_i, start_addr_scheme_i[1]);
+      // $display("[scrambler debug] address_i: %h  start_addr_scheme_i[2]: %h", address_i, start_addr_scheme_i[2]);
+      // $display("[scrambler debug] address_i: %h  start_addr_scheme_i[3]: %h", address_i, start_addr_scheme_i[3]);
+
+
       // Default: unscrambled
       address_o                 = address_i;
       post_scramble_row_index   = 'b0;
@@ -147,11 +154,13 @@ module address_scrambler #(
       // Stack Region (wrap at end of tile)
       if (address_i < (NumTiles * SeqMemSizePerTile)) begin
         address_o[SeqTotalBits-1 : ConstantBitsLSB] = { scramble, tile_id };
+        //$display("[scrambler debug] IN STACK address_i: %h -> address_o: %h", address_i, address_o);
 
       // 4 Heap Regions (wrap at end of partition)
       end else if ( (address_i >= start_addr_scheme_i[0]) &&
                     (address_i <  start_addr_scheme_i[0] + MemSizePerRow * allocated_size_i[0]) ) begin
         `SCRAMBLE_HEAP_REGION(0);
+        //$display("[scrambler debug] IN REGION 0 address_i: %h -> address_o: %h", address_i, address_o);
 
       end else if ( (address_i >= start_addr_scheme_i[1]) &&
                     (address_i <  start_addr_scheme_i[1] + MemSizePerRow * allocated_size_i[1]) ) begin

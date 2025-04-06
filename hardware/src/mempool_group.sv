@@ -60,12 +60,18 @@ module mempool_group
   `endif
   // Wake up interface
   input  logic                            [NumCoresPerGroup-1:0]                 wake_up_i,
+  // Partition selection
+  input  logic                            [3:0][PartitionDataWidth-1:0]          partition_sel_i,
+  input  logic                            [3:0][PartitionDataWidth-1:0]          allocated_size_i,
+  input  logic                            [3:0][DataWidth-1:0]                   start_addr_scheme_i,
+  input  logic                            [1:0]                                  dma_mode_i,
   // RO-Cache configuration
   input  `STRUCT_PORT(ro_cache_ctrl_t)                                           ro_cache_ctrl_i,
   // DMA request
   input  `STRUCT_PORT(dma_req_t)                                                 dma_req_i,
   input  logic                                                                   dma_req_valid_i,
   output logic                                                                   dma_req_ready_o,
+  input  logic                            [7:0]                                  dma_allocated_size_sel_i,
   // DMA status
   output `STRUCT_PORT(dma_meta_t)                                                dma_meta_o,
    // AXI Interface
@@ -330,7 +336,11 @@ module mempool_group
           // RO-Cache configuration
           .ro_cache_ctrl_i         (ro_cache_ctrl_q                                                       ),
           // Wake up interface
-          .wake_up_i      (wake_up_q[sg*NumCoresPerSubGroup +: NumCoresPerSubGroup]                       )
+          .wake_up_i      (wake_up_q[sg*NumCoresPerSubGroup +: NumCoresPerSubGroup]                       ),
+          // Partition selection
+          .start_addr_scheme_i     (start_addr_scheme_i                                                   ),
+          .allocated_size_i        (allocated_size_i                                                      ),
+          .partition_sel_i         (partition_sel_i)
         );
       end else begin: gen_rtl_sg
         mempool_sub_group #(
@@ -382,7 +392,11 @@ module mempool_group
           // RO-Cache configuration
           .ro_cache_ctrl_i         (ro_cache_ctrl_q                                                       ),
           // Wake up interface
-          .wake_up_i      (wake_up_q[sg*NumCoresPerSubGroup +: NumCoresPerSubGroup]                       )
+          .wake_up_i      (wake_up_q[sg*NumCoresPerSubGroup +: NumCoresPerSubGroup]                       ),
+          // Partition selection
+          .start_addr_scheme_i     (start_addr_scheme_i                                                   ),
+          .allocated_size_i        (allocated_size_i                                                      ),
+          .partition_sel_i         (partition_sel_i)
         );
       end
       // Transpose the group requests
@@ -689,7 +703,11 @@ module mempool_group
         .axi_mst_req_o           (axi_tile_req[t]                                ),
         .axi_mst_resp_i          (axi_tile_resp[t]                               ),
         // Wake up interface
-        .wake_up_i               (wake_up_q[t*NumCoresPerTile +: NumCoresPerTile])
+        .wake_up_i               (wake_up_q[t*NumCoresPerTile +: NumCoresPerTile]),
+        // Partition selection
+        .start_addr_scheme_i     (start_addr_scheme_i                            ),
+        .allocated_size_i        (allocated_size_i                               ),
+        .partition_sel_i         (partition_sel_i)
       );
 
       // Transpose the group requests

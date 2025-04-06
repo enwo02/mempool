@@ -78,8 +78,8 @@ int main() {
   const uint32_t dim = dotp_l.M;
 
   // calculate the number of rounds we need
-  // the optimal settings for lmul is 4 for MemPool, 2 for TeraPool
-  const uint32_t lmul = 4;
+  // the optimal settings for lmul is 4 for MemPool, 2 for TeraPool, 8 for MinPool
+  const uint32_t lmul = 8;
   const uint32_t vlen_elem = VLEN / 32;
   const uint32_t max_vl = vlen_elem * lmul;
 
@@ -99,19 +99,20 @@ int main() {
 
   // Sequential heap parameters
   uint32_t group_factor = 4;
-  uint32_t core_group_factor = 4;
   uint32_t num_partition = mempool_get_tile_count() / group_factor;
+
+  if (cid == 0) {
+    printf("In sp-dotp-dynamic script\n");
+  }
 
   // Initialize the allocator
   alloc_init(&alloc_l1, (void *)&__heap_start, (uint32_t)&__l1_end - (uint32_t)&__heap_start);
 
-  // Initialize the interleaved heap
+  // Initialize and reset the sequetial heap
   mempool_dynamic_heap_alloc_init(cid, group_factor);
-  // mempool_reset_heap(cid, __heap_seq_start);                                    // interleaved heap
-  mempool_dynamic_heap_alloc_reset(cid, core_group_factor, __heap_seq_start);      // sequential heap
+  mempool_dynamic_heap_alloc_reset(cid, group_factor, __heap_seq_start);
 
   if (cid == 0){
-    printf("In sp-dotp-dynamic script\n");
     alloc_dump(&alloc_l1);
     printf("dim: %d, dim_per_round: %d\n", dim, dim_per_round);
     printf("lmul:%u, dim:%u, rnd:%u\n", lmul, dim_per_round, round);

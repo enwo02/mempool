@@ -305,6 +305,7 @@ static inline void start_addr_scheme_config (uint32_t reg_sel, uint32_t addr, ui
   switch (reg_sel){
     case 0: 
       start_addr_scheme0_reg = addr;
+      printf("CALLING FCT start_addr_scheme0_reg = %08X\n", start_addr_scheme0_reg);
       allocated_size0_reg    = size / 4096;
       break;
     case 1: 

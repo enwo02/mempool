@@ -6,6 +6,7 @@
 
 module ctrl_registers
   import mempool_pkg::ro_cache_ctrl_t;
+  import mempool_pkg::PartitionDataWidth;
 #(
   parameter int DataWidth                      = 32,
   parameter int NumRegs                        = 0,
@@ -29,7 +30,12 @@ module ctrl_registers
   output logic      [DataWidth-1:0]      tcdm_start_address_o,
   output logic      [DataWidth-1:0]      tcdm_end_address_o,
   output logic      [DataWidth-1:0]      num_cores_o,
-  output ro_cache_ctrl_t                 ro_cache_ctrl_o
+  output ro_cache_ctrl_t                 ro_cache_ctrl_o,
+  // output logic      [PartitionDataWidth-1:0]      partition_sel_o,
+  output logic      [3:0][PartitionDataWidth-1:0]     partition_sel_o,
+  output logic      [3:0][PartitionDataWidth-1:0]     allocated_size_o,
+  output logic      [3:0][DataWidth-1:0]              start_addr_scheme_o,
+  output logic      [DataWidth-1:0]                   dma_mode_o
 );
 
   import mempool_pkg::*;
@@ -65,8 +71,29 @@ module ctrl_registers
 
   // [95:64]:wake_up_tile[7:0]              (rw)
 
+  // ------ Rst Values ------ //
+  localparam logic [DataWidth-1:0] RegRstVal_DmaMode = 32'h0000_0000;
+  localparam logic [3:0][DataWidth-1:0] RegRstVal_AllocatedSize = '{
+    32'h0000_0000,  // allocated_size_3
+    32'h0000_0000,  // allocated_size_2
+    32'h0000_0000,  // allocated_size_1
+    32'h0000_0000   // allocated_size_0
+  };
+
+  localparam logic [2:0][DataWidth-1:0] RegRstVal_PartitionOther = '{
+    32'h0000_0080, // partition_sel3
+    32'h0000_0080,
+    32'h0000_0080
+  };
+  localparam logic [3:0][DataWidth-1:0] RegRstVal_StartAddr = '{ // initialized to the end of L1 region
+    32'h0040_0000,  // start_addr_scheme3
+    32'h0040_0000,  // start_addr_scheme2
+    32'h0040_0000,  // start_addr_scheme1
+    32'h0040_0000   // start_addr_scheme0
+  };
+  localparam logic [DataWidth-1:0] RegRstVal_Partition = 32'h0000_0080; // Default partition (128), fully interleaved L1 SPM
   localparam logic [MAX_NumGroups*DataWidth-1:0] RegRstVal_TileWakeUp = '{MAX_NumGroups*DataWidth{1'b0}};
-  localparam logic [NumRegs-MAX_NumGroups-1:0][DataWidth-1:0] RegRstVal = '{
+  localparam logic [NumRegs-MAX_NumGroups-1-1-7-4-1:0][DataWidth-1:0] RegRstVal = '{
     32'h0000_0010,
     32'h0000_000C,
     32'h0000_000C,
@@ -85,8 +112,29 @@ module ctrl_registers
     {DataWidth{1'b0}}
   };
 
+  // ------ ReadOnly Values ------ //
+  localparam logic [DataWidthInBytes-1:0] AxiReadOnly_DmaMode = ReadWriteReg;
+  localparam logic [3:0][DataWidthInBytes-1:0] AxiReadOnly_AllocatedSize = '{
+    ReadWriteReg,
+    ReadWriteReg,
+    ReadWriteReg,
+    ReadWriteReg
+  };
+
+  localparam logic [2:0][DataWidthInBytes-1:0] AxiReadOnly_PartitionOther = '{
+    ReadWriteReg,
+    ReadWriteReg,
+    ReadWriteReg
+  };
+  localparam logic [3:0][DataWidthInBytes-1:0] AxiReadOnly_StartAddr = '{
+    ReadWriteReg,
+    ReadWriteReg,
+    ReadWriteReg,
+    ReadWriteReg
+  };
+  localparam logic [DataWidthInBytes-1:0] AxiReadOnly_Partition = ReadWriteReg;
   localparam logic [MAX_NumGroups-1:0][DataWidthInBytes-1:0] AxiReadOnly_TileWakeUp = '{MAX_NumGroups{ReadWriteReg}};
-  localparam logic [NumRegs-MAX_NumGroups-1:0][DataWidthInBytes-1:0] AxiReadOnly = '{
+  localparam logic [NumRegs-MAX_NumGroups-1-1-7-4-1:0][DataWidthInBytes-1:0] AxiReadOnly = '{
     ReadWriteReg,
     ReadWriteReg,
     ReadWriteReg,
@@ -125,6 +173,25 @@ module ctrl_registers
   logic [DataWidth-1:0]   ro_cache_start_3;
   logic [DataWidth-1:0]   ro_cache_end_3;
   logic [MAX_NumGroups*DataWidth-1:0] wake_up_tile;
+  logic [DataWidth-1:0]   partition_sel;
+  logic [DataWidth-1:0]   start_addr_scheme0;
+  logic [DataWidth-1:0]   start_addr_scheme1;
+  logic [DataWidth-1:0]   start_addr_scheme2;
+  logic [DataWidth-1:0]   start_addr_scheme3;
+
+  // Temp registers
+  logic [DataWidth-1:0]   partition_sel1;
+  logic [DataWidth-1:0]   partition_sel2;
+  logic [DataWidth-1:0]   partition_sel3;
+
+  // Allocated Size for each scheme
+  logic [DataWidth-1:0]   allocated_size_0;
+  logic [DataWidth-1:0]   allocated_size_1;
+  logic [DataWidth-1:0]   allocated_size_2;
+  logic [DataWidth-1:0]   allocated_size_3;
+
+  // DMA Mode Selection
+  logic [DataWidth-1:0]   dma_mode;
 
   logic [RegNumBytes-1:0] wr_active_d;
   logic [RegNumBytes-1:0] wr_active_q;
@@ -133,8 +200,8 @@ module ctrl_registers
     .RegNumBytes (RegNumBytes                            ),
     .AxiAddrWidth(AddrWidth                              ),
     .AxiDataWidth(AxiLiteDataWidth                       ),
-    .AxiReadOnly ({AxiReadOnly_TileWakeUp, AxiReadOnly}  ),
-    .RegRstVal   ({RegRstVal_TileWakeUp, RegRstVal}      ),
+    .AxiReadOnly ({AxiReadOnly_DmaMode, AxiReadOnly_AllocatedSize, AxiReadOnly_PartitionOther, AxiReadOnly_StartAddr, AxiReadOnly_Partition, AxiReadOnly_TileWakeUp, AxiReadOnly}  ),
+    .RegRstVal   ({RegRstVal_DmaMode,   RegRstVal_AllocatedSize,   RegRstVal_PartitionOther,   RegRstVal_StartAddr,   RegRstVal_Partition,   RegRstVal_TileWakeUp,   RegRstVal}    ),
     .req_lite_t  (axi_lite_req_t                         ),
     .resp_lite_t (axi_lite_resp_t                        )
   ) i_axi_lite_regs (
@@ -146,7 +213,10 @@ module ctrl_registers
     .rd_active_o(/* Unused */                                                   ),
     .reg_d_i    ('0                                                             ),
     .reg_load_i ('0                                                             ),
-    .reg_q_o    ({  wake_up_tile,
+    .reg_q_o    ({  dma_mode, allocated_size_3, allocated_size_2, allocated_size_1, allocated_size_0,
+                    partition_sel3, partition_sel2, partition_sel1,
+                    start_addr_scheme3, start_addr_scheme2, start_addr_scheme1, start_addr_scheme0, 
+                    partition_sel,  wake_up_tile,
                     ro_cache_end_3, ro_cache_start_3,
                     ro_cache_end_2, ro_cache_start_2,
                     ro_cache_end_1, ro_cache_start_1,
@@ -174,6 +244,20 @@ module ctrl_registers
   assign ro_cache_ctrl_o.end_addr[1]   = ro_cache_end_1;
   assign ro_cache_ctrl_o.end_addr[2]   = ro_cache_end_2;
   assign ro_cache_ctrl_o.end_addr[3]   = ro_cache_end_3;
+  assign partition_sel_o[0] = partition_sel[PartitionDataWidth-1:0];
+  assign partition_sel_o[1] = partition_sel1[PartitionDataWidth-1:0];
+  assign partition_sel_o[2] = partition_sel2[PartitionDataWidth-1:0];
+  assign partition_sel_o[3] = partition_sel3[PartitionDataWidth-1:0];
+  assign start_addr_scheme_o[0]        = start_addr_scheme0;
+  assign start_addr_scheme_o[1]        = start_addr_scheme1;
+  assign start_addr_scheme_o[2]        = start_addr_scheme2;
+  assign start_addr_scheme_o[3]        = start_addr_scheme3;
+
+  assign allocated_size_o[0] = allocated_size_0[PartitionDataWidth-1:0];
+  assign allocated_size_o[1] = allocated_size_1[PartitionDataWidth-1:0];
+  assign allocated_size_o[2] = allocated_size_2[PartitionDataWidth-1:0];
+  assign allocated_size_o[3] = allocated_size_3[PartitionDataWidth-1:0];
+  assign dma_mode_o = dma_mode;
 
   always_comb begin
     wake_up_o = '0;
