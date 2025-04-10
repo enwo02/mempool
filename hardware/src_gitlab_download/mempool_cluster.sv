@@ -333,7 +333,7 @@ module mempool_cluster
           .dma_req_i               (dma_req_group_q[g]                                              ),
           .dma_req_valid_i         (dma_req_group_q_valid[g]                                        ),
           .dma_req_ready_o         (dma_req_group_q_ready[g]                                        ),
-          .dma_allocated_size_sel_i(allocated_size_sel                                              ),              
+          .dma_allocated_size_sel_i(allocated_size_sel                                              ),
           // DMA status
           .dma_meta_o_backend_idle_ (dma_meta[g][1]                                                 ),
           .dma_meta_o_trans_complete_ (dma_meta[g][0]                                               ),

@@ -101,6 +101,8 @@ int main() {
   uint32_t group_factor = 4;
   uint32_t num_partition = mempool_get_tile_count() / group_factor;
 
+  uint32_t tiles_per_partition = 1;
+
   if (cid == 0) {
     printf("In sp-dotp-dynamic script\n");
   }
@@ -110,7 +112,7 @@ int main() {
 
   // Initialize and reset the sequetial heap
   mempool_dynamic_heap_alloc_init(cid, group_factor);
-  mempool_dynamic_heap_alloc_reset(cid, group_factor, __heap_seq_start);
+  mempool_dynamic_heap_alloc_reset(cid, group_factor, 0x4000);
 
   if (cid == 0){
     alloc_dump(&alloc_l1);
@@ -141,8 +143,8 @@ int main() {
   if (cid == 0) {
     if (use_sequential_region){
       // Dynamic memory allocation (sequential region)--------------------------
-      alloc_matrix(&a, dim, group_factor, num_partition);
-      alloc_matrix(&b, dim, group_factor, num_partition);
+      alloc_matrix(&a, dim, tiles_per_partition, num_partition);
+      alloc_matrix(&b, dim, tiles_per_partition, num_partition);
     } else{
       // Dynamic memory allocation (interleaved region)----------------------
       a = (float *)simple_malloc(dim * sizeof(float));
@@ -215,13 +217,13 @@ int main() {
       *final_store += result[i];
   }
 
-  if (cid == 0) {
-    printf("Results array calculated contents:\n");
-    // Print each element as hex to avoid float parsing
-    for (uint32_t i = 0; i <= active_cores; i++) {
-        printf("result[%u]: %08x\n", i, *(uint32_t*)(&result[i]));
-    }
-  }
+  // if (cid == 0) {
+  //   printf("Results array calculated contents:\n");
+  //   // Print each element as hex to avoid float parsing
+  //   for (uint32_t i = 0; i <= active_cores; i++) {
+  //       printf("result[%u]: %08x\n", i, *(uint32_t*)(&result[i]));
+  //   }
+  // }
 
   // End dump
   if (cid < active_cores)

@@ -140,10 +140,10 @@ module address_scrambler #(
     // ---------------------------------------------------------------------------
     always_comb begin
       // $display("[scrambler debug] address_i: %h -> address_o: %h", address_i, address_o);
-      // $display("[scrambler debug] address_i: %h  start_addr_scheme_i[0]: %h", address_i, start_addr_scheme_i[0]);
-      // $display("[scrambler debug] address_i: %h  start_addr_scheme_i[1]: %h", address_i, start_addr_scheme_i[1]);
-      // $display("[scrambler debug] address_i: %h  start_addr_scheme_i[2]: %h", address_i, start_addr_scheme_i[2]);
-      // $display("[scrambler debug] address_i: %h  start_addr_scheme_i[3]: %h", address_i, start_addr_scheme_i[3]);
+      // $display("[scrambler debug] start_addr_scheme_i[0]: %h", start_addr_scheme_i[0]);
+      // $display("[scrambler debug] start_addr_scheme_i[1]: %h", start_addr_scheme_i[1]);
+      // $display("[scrambler debug] start_addr_scheme_i[2]: %h", start_addr_scheme_i[2]);
+      // $display("[scrambler debug] start_addr_scheme_i[3]: %h", start_addr_scheme_i[3]);
 
 
       // Default: unscrambled
@@ -160,11 +160,19 @@ module address_scrambler #(
       end else if ( (address_i >= start_addr_scheme_i[0]) &&
                     (address_i <  start_addr_scheme_i[0] + MemSizePerRow * allocated_size_i[0]) ) begin
         `SCRAMBLE_HEAP_REGION(0);
-        //$display("[scrambler debug] IN REGION 0 address_i: %h -> address_o: %h", address_i, address_o);
+        // $display("[scrambler debug] IN REGION 0 address_i: %h -> address_o: %h", address_i, address_o);
+        // $display("[scrambler debug] allocated_size_i[0]: %h", allocated_size_i[0]);
+        // $display("[scrambler debug] group_factor_i[0]: %h", group_factor_i[0]);
+        // $display("[scrambler debug] shift_index[0]: %h", shift_index[0]);
+        // $display("[scrambler debug] shift_index_sc[0]: %h", shift_index_sc[0]);
+        // display uper and lower bounds
+        // $display("[scrambler debug] LOWER: %h", start_addr_scheme_i[0]);
+        // $display("[scrambler debug] UPPER: %h", start_addr_scheme_i[0] + MemSizePerRow * allocated_size_i[0]);
 
       end else if ( (address_i >= start_addr_scheme_i[1]) &&
                     (address_i <  start_addr_scheme_i[1] + MemSizePerRow * allocated_size_i[1]) ) begin
         `SCRAMBLE_HEAP_REGION(1);
+        // $display("[scrambler debug] IN REGION 1 address_i: %h -> address_o: %h", address_i, address_o);
 
       end else if ( (address_i >= start_addr_scheme_i[2]) &&
                     (address_i <  start_addr_scheme_i[2] + MemSizePerRow * allocated_size_i[2]) ) begin
