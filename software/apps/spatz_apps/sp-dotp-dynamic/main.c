@@ -105,14 +105,14 @@ int main() {
 
   if (cid == 0) {
     printf("In sp-dotp-dynamic script\n");
+    // Initialize the allocator
+    alloc_init(&alloc_l1, (void *)&__heap_start, (uint32_t)&__l1_end - (uint32_t)&__heap_start);
+    // Initialize and reset the sequetial heap
+    mempool_dynamic_heap_alloc_init(cid, group_factor);
+    mempool_dynamic_heap_alloc_reset(cid, group_factor, 0x4000);
   }
 
-  // Initialize the allocator
-  alloc_init(&alloc_l1, (void *)&__heap_start, (uint32_t)&__l1_end - (uint32_t)&__heap_start);
-
-  // Initialize and reset the sequetial heap
-  mempool_dynamic_heap_alloc_init(cid, group_factor);
-  mempool_dynamic_heap_alloc_reset(cid, group_factor, 0x4000);
+  
 
   if (cid == 0){
     alloc_dump(&alloc_l1);
@@ -143,6 +143,7 @@ int main() {
   if (cid == 0) {
     if (use_sequential_region){
       // Dynamic memory allocation (sequential region)--------------------------
+      printf("Using sequential region\n");
       alloc_matrix(&a, dim, tiles_per_partition, num_partition);
       alloc_matrix(&b, dim, tiles_per_partition, num_partition);
     } else{

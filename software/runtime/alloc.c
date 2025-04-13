@@ -81,9 +81,11 @@ canary_chain_t *first_canary = (canary_chain_t *)0x1000;
 // Initialization
 // ----------------------------------------------------------------------------
 void alloc_init(alloc_t *alloc, void *base, const uint32_t size) {
+  printf("In alloc_init------------------------------\n");
   // Create first block at base address aligned up
   uint32_t aligned_base = ALIGN_UP((uint32_t)base, MIN_BLOCK_SIZE);
   alloc_block_t *block_ptr = (alloc_block_t *)aligned_base;
+  printf("block_ptr: %p\n", block_ptr);
 
   // Calculate block size aligned down
   uint32_t block_size = size - ((uint32_t)block_ptr - (uint32_t)base);
@@ -150,28 +152,51 @@ static uint32_t calc_aligned_size (uint32_t* addr, const uint32_t allocated_size
   // uint32_t mask = (uint32_t)(( 1 << (allocated_size-1) )-1);
   uint32_t mask = (uint32_t)(( 1 << log )-1);
 
-  uint32_t row_id, tile_id, offset;
-  offset  =  ((uint32_t)addr)       & 0x7F;
-  tile_id =  ((uint32_t)addr >> 7 ) & 0x7F;
-  row_id  =  ((uint32_t)addr >> 14) & 0xFF;
-  row_id &= mask;
+  // uint32_t row_id, tile_id, offset;
+  // offset  =  ((uint32_t)addr)       & 0x7F;     // 127 =  111_1111
+  // // 7 should be the number of bits for offset
+  // tile_id =  ((uint32_t)addr >> 7 ) & 0x7F;     // 127 =  111_1111
+  // // 14 is 7 plus 7, should be the number of bits for tile_id
+  // row_id  =  ((uint32_t)addr >> 14) & 0xFF;     // 255 = 1111_1111
+
+  // STILL HARDCODED
+  const uint32_t offset_bits   = 6;  // Minpool: 4 bytes/bank/row and 16 banks/tile --> 2 + 4 = 6 bits
+  const uint32_t tile_id_bits  = 2;  // Minpool: 4 tiles means 2 bits
+  const uint32_t row_id_bits   = 8;  // Minpool: 256 rows/bank means 8 bits
+
+  // Compute masks from the bit widths
+  const uint32_t offset_mask   = (1U << offset_bits)  - 1U;  // 0x3F =   11_1111
+  const uint32_t tile_id_mask  = (1U << tile_id_bits) - 1U;  // 0x03 =        11
+  const uint32_t row_id_mask   = (1U << row_id_bits)  - 1U;  // 0xFF = 1111_1111
+
+  // Now extract each field from the address
+  uint32_t addr_val = (uint32_t)addr;
+  uint32_t offset  =  addr_val                                  & offset_mask;
+  uint32_t tile_id = (addr_val >> offset_bits)                  & tile_id_mask;
+  uint32_t row_id  = (addr_val >> (offset_bits + tile_id_bits)) & row_id_mask;
+
+  row_id &= mask; // Only take the row_id to represent the allocated size
 
   uint32_t shift_size=0;
   if ( (offset==0) && (row_id==0) && (tile_id==0) ){
     shift_size = 0;
   }
   else{
-    uint32_t aligned_boundary = 4096*4*allocated_size;
-    uint32_t modified_curr    = (row_id<<14) | (tile_id<<7) | offset;
+    uint32_t aligned_boundary = 4096*allocated_size;
+    uint32_t modified_curr    = (row_id << (offset_bits + tile_id_bits)) | (tile_id << offset_bits) | offset;
     shift_size = aligned_boundary - modified_curr;
   }
 
   return shift_size;
 }
+
 // ------ Parameters ------ //
 // size:           Size of the data block need to be allocated
 // allocated_size: How many rows the current partition scheme occupied
 static void *allocate_memory_aligned(alloc_t *alloc, const uint32_t size, const uint32_t allocated_size) {
+  printf("In allocate_memory_aligned-----------------------------\n");
+  printf("size: %d, allocated_size: %d\n", size, allocated_size);
+  printf("\n");
   // Get first block of linked list of free blocks
   alloc_block_t *curr = alloc->first_block;
   alloc_block_t *prev = 0;
@@ -184,14 +209,19 @@ static void *allocate_memory_aligned(alloc_t *alloc, const uint32_t size, const 
 
   // while (curr && (curr->size < size)) {
   while (curr && (curr->size < aligned_size)) {
+    printf("In the while loop\n");
     prev = curr;
     curr = curr->next;
+    printf("curr: %p, prev: %p\n", curr, prev);
     shift_size = calc_aligned_size( (uint32_t*)curr, allocated_size);
+    printf("shift size: %d\n", shift_size);
     aligned_size = size + shift_size;
   }
   printf("size [%d] --- shift size [%d] --- aligned size [%d] \n", size, shift_size, aligned_size);
-
+  printf("HERE1\n");
+  printf("curr: %p, prev: %p\n", curr, prev);
   if (curr) {
+    printf("HERE2\n");
     // Update allocator
     if (size == aligned_size){
       // address is already aligned to the partition boundary
@@ -216,6 +246,7 @@ static void *allocate_memory_aligned(alloc_t *alloc, const uint32_t size, const 
       }
     }
     else{
+      printf("HERE3\n");
       printf("Alignment needed\n");
       if (curr->size == aligned_size) {
         // Special case: Whole block taken, first part of the block is still empty
@@ -247,10 +278,12 @@ static void *allocate_memory_aligned(alloc_t *alloc, const uint32_t size, const 
         }
       }
     }
+    printf("HERE4\n");
 
     // Return block pointer
     return (void *)((char *)curr+shift_size);
   } else {
+    printf("HERE5\n");
     // There is no free block large enough
     return NULL;
   }
@@ -421,6 +454,7 @@ void *simple_aligned_malloc(const uint32_t size){
 // Canary system is stored in a seperate linked list
 // void *partition_malloc(alloc_t *alloc, const uint32_t size){
   void *partition_malloc(alloc_t *alloc, const uint32_t size, const uint32_t allocated_size){
+    printf("In partition malloc-----------------------------\n");
     uint32_t data_size = size;
     uint32_t block_size = ALIGN_UP(data_size, MIN_BLOCK_SIZE); // add alignment
     // TODO: Data may need to aligned with the partition boundary
@@ -433,6 +467,7 @@ void *simple_aligned_malloc(const uint32_t size){
   
     // allocate 
     void *block_ptr = NULL;
+    printf("allocated_size: %d\n", allocated_size);
     if (allocated_size<2){
       block_ptr = allocate_memory(alloc, block_size);
     }

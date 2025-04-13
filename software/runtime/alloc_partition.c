@@ -31,6 +31,9 @@ void alloc_matrix (float *volatile * target, uint32_t size, uint32_t group_facto
     // 3. find which partition in free
     uint32_t pid=0;
     uint32_t avail=0;
+    printf("Allocating matrix at [%p] with size [%d]\n", *target, total_size);
+    printf("pid [%d] avail [%d]\n", pid, avail);
+    printf("NUM_PART_REGION [%d]\n", NUM_PART_REGION);
     while( (pid<NUM_PART_REGION) && (avail==0)){
         if (partition_status[pid].status==0){
             avail=1;
