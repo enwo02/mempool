@@ -306,9 +306,6 @@ static inline void start_addr_scheme_config (uint32_t reg_sel, uint32_t addr, ui
     case 0: 
       start_addr_scheme0_reg = addr;        // STILL HARDCODED
       allocated_size0_reg    = size / 64;   // This should be the total number of banks (size/totalNrBanks)
-      printf("start_addr_scheme0_reg = %x\n", start_addr_scheme0_reg);
-      printf("allocated_size0_reg = %x\n", allocated_size0_reg);
-      printf("size = %x\n", size);
       break;
     case 1: 
       start_addr_scheme1_reg = addr;

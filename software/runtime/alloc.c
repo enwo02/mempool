@@ -194,9 +194,6 @@ static uint32_t calc_aligned_size (uint32_t* addr, const uint32_t allocated_size
 // size:           Size of the data block need to be allocated
 // allocated_size: How many rows the current partition scheme occupied
 static void *allocate_memory_aligned(alloc_t *alloc, const uint32_t size, const uint32_t allocated_size) {
-  printf("In allocate_memory_aligned-----------------------------\n");
-  printf("size: %d, allocated_size: %d\n", size, allocated_size);
-  printf("\n");
   // Get first block of linked list of free blocks
   alloc_block_t *curr = alloc->first_block;
   alloc_block_t *prev = 0;
@@ -209,17 +206,12 @@ static void *allocate_memory_aligned(alloc_t *alloc, const uint32_t size, const 
 
   // while (curr && (curr->size < size)) {
   while (curr && (curr->size < aligned_size)) {
-    printf("In the while loop\n");
     prev = curr;
     curr = curr->next;
-    printf("curr: %p, prev: %p\n", curr, prev);
     shift_size = calc_aligned_size( (uint32_t*)curr, allocated_size);
-    printf("shift size: %d\n", shift_size);
     aligned_size = size + shift_size;
   }
-  printf("size [%d] --- shift size [%d] --- aligned size [%d] \n", size, shift_size, aligned_size);
-  printf("HERE1\n");
-  printf("curr: %p, prev: %p\n", curr, prev);
+
   if (curr) {
     printf("HERE2\n");
     // Update allocator
