@@ -112,15 +112,7 @@ int main() {
     alloc_init(&alloc_l1, (void *)&__heap_start, (uint32_t)&__l1_end - (uint32_t)&__heap_start);
     // Initialize and reset the sequetial heap
     mempool_dynamic_heap_alloc_init(cid, group_factor);
-    mempool_dynamic_heap_alloc_reset(cid, group_factor, 0x4000);
-  }
-
-  
-
-  if (cid == 0){
-    alloc_dump(&alloc_l1);
-    printf("dim: %d, dim_per_round: %d\n", dim, dim_per_round);
-    printf("lmul:%u, dim:%u, rnd:%u\n", lmul, dim_per_round, round);
+    mempool_dynamic_heap_alloc_reset(cid, group_factor, __heap_seq_start); // 0x4000
   }
 
   // init partition info
@@ -154,36 +146,24 @@ int main() {
       a = (float *)simple_malloc(dim * sizeof(float));
       b = (float *)simple_malloc(dim * sizeof(float));
       // Moving the data
-      dma_memcpy_blocking(a, dotp_A_dram, dim * sizeof(float));
-      dma_memcpy_blocking(b, dotp_B_dram, dim * sizeof(float));   
+      
     }
 
+    dma_memcpy_blocking(a, dotp_A_dram, dim * sizeof(float));
+    dma_memcpy_blocking(b, dotp_B_dram, dim * sizeof(float));
     // Print the addresses of the allocated memory
     printf("Allocated a at %08X with size (nr of elements) %u\n", a, dim);
     printf("Allocated b at %08X with size (nr of elements) %u\n", b, dim);
+    printf("finish copy\n");  
 
     for (uint32_t i = 0; i <= active_cores; i ++) {
       result[i] = 0;
     }
-    printf("finish copy if interleaved\n");
+    
   }
 
   // Wait for all cores to finish
   mempool_barrier(num_cores);
-
-  if (cid == 0 && use_sequential_region){
-      dma_memcpy_ModeSel(a, dotp_A_dram, dim * sizeof(float), DMA_STD);
-      do {
-        mempool_wait(128);
-      } while (!dma_done());
-
-      dma_memcpy_ModeSel(b, dotp_B_dram, dim * sizeof(float), DMA_STD);
-      do {
-        mempool_wait(128);
-      } while (!dma_done());
-    
-    printf("finish copy if sequential\n");
-  }
 
   // This starting addresses are wrong!! STILL HARDCODED
   float *a_int = a + dim/4 * cid;
@@ -192,17 +172,7 @@ int main() {
   float acc = 0;
   uint32_t vl;
 
-  // Print a_int for all cores
-  if (cid == 0) {printf("core 0: a_int = %08X\n", a_int);}
   mempool_barrier(num_cores);
-  if (cid == 1) {printf("core 1: a_int = %08X\n", a_int);}
-  mempool_barrier(num_cores);
-  if (cid == 2) {printf("core 2: a_int = %08X\n", a_int);}
-  mempool_barrier(num_cores);
-  if (cid == 3) {printf("core 3: a_int = %08X\n", a_int);}
-  mempool_barrier(num_cores);
-  
-
   if (is_core_active) {
     if (lmul == 1)
       asm volatile("vsetvli %0, %1, e32, m1, ta, ma" : "=r"(vl) : "r"(dim_core));
@@ -246,16 +216,18 @@ int main() {
       *final_store += result[i];
   }
 
-  if (cid == 0) {
-    printf("Results array calculated contents:\n");
-    // Print each element as hex to avoid float parsing
-    for (uint32_t i = 0; i <= active_cores; i++) {
-        // Print results themselfs
-        printf("result[%u]: %08x\n", i, *(uint32_t*)(&result[i]));
-        // Print address of result
-        //printf("addr result[%u]: %08x\n", i, &result[i]);
-    }
-  }
+  // For debugging: print results per core
+  // if (cid == 0) {
+  //   printf("Results array calculated contents:\n");
+  //   // Print each element as hex to avoid float parsing
+  //   for (uint32_t i = 0; i <= active_cores; i++) {
+  //       // Print results1
+  //  themselfs
+  //       printf("result[%u]: %08x\n", i, *(uint32_t*)(&result[i]));
+  //       // Print address of result
+  //       //printf("addr result[%u]: %08x\n", i, &result[i]);
+  //   }
+  // }
 
   // End dump
   if (cid < active_cores)

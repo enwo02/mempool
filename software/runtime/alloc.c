@@ -81,11 +81,9 @@ canary_chain_t *first_canary = (canary_chain_t *)0x1000;
 // Initialization
 // ----------------------------------------------------------------------------
 void alloc_init(alloc_t *alloc, void *base, const uint32_t size) {
-  printf("In alloc_init------------------------------\n");
   // Create first block at base address aligned up
   uint32_t aligned_base = ALIGN_UP((uint32_t)base, MIN_BLOCK_SIZE);
   alloc_block_t *block_ptr = (alloc_block_t *)aligned_base;
-  printf("block_ptr: %p\n", block_ptr);
 
   // Calculate block size aligned down
   uint32_t block_size = size - ((uint32_t)block_ptr - (uint32_t)base);
@@ -148,7 +146,7 @@ static uint32_t calc_aligned_size (uint32_t* addr, const uint32_t allocated_size
   while (tmp >>= 1) { // Shift right until value is 0
       ++log;
   }
-  printf("Allocated size: [%d], log: [%d]\n", tmp, log);
+  // printf("Allocated size: [%d], log: [%d]\n", tmp, log);
   // uint32_t mask = (uint32_t)(( 1 << (allocated_size-1) )-1);
   uint32_t mask = (uint32_t)(( 1 << log )-1);
 
@@ -182,7 +180,13 @@ static uint32_t calc_aligned_size (uint32_t* addr, const uint32_t allocated_size
     shift_size = 0;
   }
   else{
-    uint32_t aligned_boundary = 4096*allocated_size;
+    // Number of bytes spanned by offset alone
+    uint32_t bytes_per_tile = (1U << offset_bits);  
+    // Number of tiles in a row
+    uint32_t tiles_per_row  = (1U << tile_id_bits);  
+    // Total bytes in one row (covers all tiles)
+    uint32_t bytes_per_row  = bytes_per_tile * tiles_per_row; 
+    uint32_t aligned_boundary = bytes_per_row * allocated_size; // length of one row accross all tiles * number of rows
     uint32_t modified_curr    = (row_id << (offset_bits + tile_id_bits)) | (tile_id << offset_bits) | offset;
     shift_size = aligned_boundary - modified_curr;
   }
@@ -213,7 +217,6 @@ static void *allocate_memory_aligned(alloc_t *alloc, const uint32_t size, const 
   }
 
   if (curr) {
-    printf("HERE2\n");
     // Update allocator
     if (size == aligned_size){
       // address is already aligned to the partition boundary
@@ -238,7 +241,6 @@ static void *allocate_memory_aligned(alloc_t *alloc, const uint32_t size, const 
       }
     }
     else{
-      printf("HERE3\n");
       printf("Alignment needed\n");
       if (curr->size == aligned_size) {
         // Special case: Whole block taken, first part of the block is still empty
@@ -270,12 +272,10 @@ static void *allocate_memory_aligned(alloc_t *alloc, const uint32_t size, const 
         }
       }
     }
-    printf("HERE4\n");
 
     // Return block pointer
     return (void *)((char *)curr+shift_size);
   } else {
-    printf("HERE5\n");
     // There is no free block large enough
     return NULL;
   }
@@ -446,7 +446,6 @@ void *simple_aligned_malloc(const uint32_t size){
 // Canary system is stored in a seperate linked list
 // void *partition_malloc(alloc_t *alloc, const uint32_t size){
   void *partition_malloc(alloc_t *alloc, const uint32_t size, const uint32_t allocated_size){
-    printf("In partition malloc-----------------------------\n");
     uint32_t data_size = size;
     uint32_t block_size = ALIGN_UP(data_size, MIN_BLOCK_SIZE); // add alignment
     // TODO: Data may need to aligned with the partition boundary
@@ -459,7 +458,6 @@ void *simple_aligned_malloc(const uint32_t size){
   
     // allocate 
     void *block_ptr = NULL;
-    printf("allocated_size: %d\n", allocated_size);
     if (allocated_size<2){
       block_ptr = allocate_memory(alloc, block_size);
     }
@@ -511,8 +509,6 @@ void *simple_aligned_malloc(const uint32_t size){
     if ((curr==(canary_chain_t *)0x1000) && !prev) {
       // special case: first canary block
       first_canary = canary;
-      printf("case 1\n");
-      printf("first_canary: %p\n", first_canary);
     }
     else{
       if (!curr){
@@ -520,21 +516,18 @@ void *simple_aligned_malloc(const uint32_t size){
         // | prev | ------> | canary | ------> NULL
         prev->next_canary   = canary;
         canary->next_canary = NULL;
-        printf("case 2\n");
       }
       else if (!prev){
         // canary need to insert at the beginning of the chain
         // first_canary ------> | canary | ------> | curr |
         first_canary = canary;
         canary->next_canary = curr;
-        printf("case 3\n");
       }
       else{
         // normal case
         // | prev |  ------> | canary | ------> | curr |
         canary->next_canary = prev->next_canary;
         prev->next_canary   = canary;
-        printf("case 4\n");
       }
   
     }
@@ -621,7 +614,7 @@ void partition_free(alloc_t *alloc, void *const ptr){
   if (curr){
     data_addr = curr->data_address;
   }
-  printf("data_addr - %p - block_ptr - %p - curr->data_address - %p \n", data_addr, block_ptr, curr->data_address);
+  
   while((curr!=(canary_chain_t *)0x1000) && (curr!=NULL) && (data_addr < (uint32_t *)block_ptr)){
     prev = curr;
     // data_addr = curr->data_address;
