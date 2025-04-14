@@ -17,6 +17,12 @@
 
 #define DMA_BASE (0x40010000)
 
+// DMA Mode Selection
+#define DMA_STD           (0)
+#define DMA_FAST          (1)
+#define DMA_DUPLICATION   (2)
+#define DMA_PARTITION_STD (3)
+
 static inline void dma_config(bool decouple, bool deburst, bool serialize) {
   volatile uint32_t *_dma_conf_reg =
       (volatile uint32_t *)(DMA_BASE + MEMPOOL_DMA_FRONTEND_CONF_REG_OFFSET);
@@ -73,4 +79,10 @@ void dma_memcpy_blocking(void *dest, const void *src, size_t len) {
   dma_memcpy_nonblocking(dest, src, len);
   dma_wait();
 }
+
+void dma_memcpy_ModeSel(void *dest, const void *src, size_t len, uint32_t mode_sel){
+  dma_mode_reg = mode_sel;
+  dma_memcpy_nonblocking(dest, src, len);
+}
+
 #endif // _DMA_H_
