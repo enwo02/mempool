@@ -6,6 +6,7 @@
 
 #include "alloc.h"
 #include "printf.h"
+#include "runtime.h"
 
 // ----------------------------------------------------------------------------
 // Block Alignment
@@ -150,17 +151,13 @@ static uint32_t calc_aligned_size (uint32_t* addr, const uint32_t allocated_size
   // uint32_t mask = (uint32_t)(( 1 << (allocated_size-1) )-1);
   uint32_t mask = (uint32_t)(( 1 << log )-1);
 
-  // uint32_t row_id, tile_id, offset;
-  // offset  =  ((uint32_t)addr)       & 0x7F;     // 127 =  111_1111
-  // // 7 should be the number of bits for offset
-  // tile_id =  ((uint32_t)addr >> 7 ) & 0x7F;     // 127 =  111_1111
-  // // 14 is 7 plus 7, should be the number of bits for tile_id
-  // row_id  =  ((uint32_t)addr >> 14) & 0xFF;     // 255 = 1111_1111
-
-  // STILL HARDCODED
-  const uint32_t offset_bits   = 6;  // Minpool: 4 bytes/bank/row and 16 banks/tile --> 2 + 4 = 6 bits
-  const uint32_t tile_id_bits  = 2;  // Minpool: 4 tiles means 2 bits
-  const uint32_t row_id_bits   = 8;  // Minpool: 256 rows/bank means 8 bits
+  // STILL HARDCODED - but should be same for all configs
+  const uint32_t row_one_bank = 4; // 4 bytes/bank/row
+  const uint32_t ByteOffset = __builtin_ctz(row_one_bank);                      // Minpool: 4 bytes/bank/row --> 2 bits
+  // __builtin_ctz is calculating log2
+  const uint32_t offset_bits = ByteOffset + __builtin_ctz(NUM_BANKS_PER_TILE);  // Minpool: 4 bytes/bank/row and 16 banks/tile --> 2 + 4 = 6 bits
+  const uint32_t tile_id_bits = __builtin_ctz(NUM_CORES / NUM_CORES_PER_TILE);  // Minpool: 4 tiles means 2 bits
+  const uint32_t row_id_bits = __builtin_ctz(L1_BANK_SIZE / ByteOffset);        // Minpool: 256 rows/bank means 8 bits
 
   // Compute masks from the bit widths
   const uint32_t offset_mask   = (1U << offset_bits)  - 1U;  // 0x3F =   11_1111
