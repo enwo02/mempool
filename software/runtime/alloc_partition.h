@@ -3,22 +3,20 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Author: Bowen Wang
+// Editor: Elio Wanner
 
 #ifndef _ALLOC_PARTITION_H_
 #define _ALLOC_PARTITION_H_
 // ------ Dynamic Data Pointers ------ //
-#define NUM_TILES (4) // STILL HARDCODED
-// void* volatile Region_A[NUM_TILES] __attribute__((section(".l1")));
-// void* volatile Region_B[NUM_TILES] __attribute__((section(".l1")));
-// void* volatile Region_C[NUM_TILES] __attribute__((section(".l1")));
-// void* volatile Region_D[NUM_TILES] __attribute__((section(".l1")));
+#define NUM_TILES (NUM_CORES / NUM_CORES_PER_TILE) // Minpool: 4 tiles
 
 // ------ Partition Status Info ------ //
-#define NUM_ELEMENTS_PER_ROW (64) // STILL HARDCODED numberOfBanksPerTile * numberOfTiles
-#define NUM_PART_REGION      (2)  // STILL HARDCODED
+#define NUM_ELEMENTS_PER_ROW (BANKING_FACTOR * N_FPU * NUM_TILES) // Minpool: 16 * 4 = numberOfBanksPerTile * numberOfTiles 
+#define NUM_PART_REGION      (2)  // STILL HARDCODED, for dotp-dyn this is 2
+// extern uint32_t NUM_PART_REGION; // number of partition regions
 
 typedef struct {
-  float *data_addr;     // trace which matrix belong to this partition
+  float *data_addr;       // trace which matrix belong to this partition
   uint32_t status;        // set to 1 if used
 } partition_status_t;
 

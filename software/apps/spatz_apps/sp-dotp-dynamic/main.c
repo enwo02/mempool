@@ -165,9 +165,9 @@ int main() {
   // Wait for all cores to finish
   mempool_barrier(num_cores);
 
-  // This starting addresses are wrong!! STILL HARDCODED
-  float *a_int = a + dim/4 * cid;
-  float *b_int = b + dim/4 * cid;
+  // Start addresses set by dividing the input vectors
+  float *a_int = a + dim/num_cores * cid;
+  float *b_int = b + dim/num_cores * cid;
   float *final_store = result + active_cores;
   float acc = 0;
   uint32_t vl;
@@ -196,7 +196,7 @@ int main() {
     if (cid == 0)
       timer_start = mempool_get_timer();
 
-    fdotp_v32b_p1(a_int, b_int, round, dim_per_round/4, cid); //STILL HARDCODED
+    fdotp_v32b_p1(a_int, b_int, round, dim_per_round/num_cores, cid); //coud be wrongly SOFTCODED
   }
 
   mempool_barrier(num_cores);

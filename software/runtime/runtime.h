@@ -303,26 +303,28 @@ static inline void partition_config (uint32_t reg_sel, uint32_t group_factor){
 // reg_sel = {3, 2, 1, 0}
 static inline void start_addr_scheme_config (uint32_t reg_sel, uint32_t addr, uint32_t size){
   asm volatile("" ::: "memory");
+  // banks per FPU * number of FPUs * number of tiles (SOFTCODED)
+  uint32_t totalNrBanks = BANKING_FACTOR * N_FPU * NUM_CORES / NUM_CORES_PER_TILE;
   switch (reg_sel){
     case 0: 
-      start_addr_scheme0_reg = addr;        // STILL HARDCODED
-      allocated_size0_reg    = size / 64;   // This should be the total number of banks (size/totalNrBanks)
+      start_addr_scheme0_reg = addr;
+      allocated_size0_reg    = size / totalNrBanks;
       break;
     case 1: 
       start_addr_scheme1_reg = addr;
-      allocated_size1_reg    = size / 64;   // This should be the total number of banks (size/totalNrBanks)
+      allocated_size1_reg    = size / totalNrBanks;
       break;
     case 2: 
       start_addr_scheme2_reg = addr;
-      allocated_size2_reg    = size / 64;   // This should be the total number of banks (size/totalNrBanks)
+      allocated_size2_reg    = size / totalNrBanks;
       break;
     case 3: 
       start_addr_scheme3_reg = addr;
-      allocated_size3_reg    = size / 64;   // This should be the total number of banks (size/totalNrBanks)
+      allocated_size3_reg    = size / totalNrBanks;
       break;
     default:
       start_addr_scheme0_reg = addr;
-      allocated_size0_reg    = size / 64;   // This should be the total number of banks (size/totalNrBanks)
+      allocated_size0_reg    = size / totalNrBanks;
       break;
   }
   asm volatile("" ::: "memory");

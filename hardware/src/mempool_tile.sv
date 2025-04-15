@@ -857,7 +857,7 @@ module mempool_tile
         .NumBanksPerTile   (NumBanksPerTile  ),
         .Bypass            (0                ),
         .SeqMemSizePerTile (SeqMemSizePerTile),
-        .MemSizePerTile    (1024 * 16),     // STILL HARDCODED   // l1_bank_size * NumBanksPerTile
+        .MemSizePerTile    (1024 * NumBanksPerTile),// STILL HARDCODED (but should be same) l1_bank_size * NumBanksPerTile = Minpool: 1024 * 16
         .MemSizePerRow     (4 * NumBanksPerTile * NumTiles)   // 4 bytes per row of one bank
       ) i_address_scrambler (
         .address_i (snitch_data_qaddr[c][p]    ),

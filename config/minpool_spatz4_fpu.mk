@@ -17,7 +17,7 @@ num_groups ?= 4
 # Number of cores per MemPool tile
 num_cores_per_tile ?= 1
 
-# L1 scratchpad banking factor
+# L1 scratchpad banking factor = number of banks per core?
 banking_factor ?= 4
 
 #########################
