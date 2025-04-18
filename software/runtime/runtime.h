@@ -197,7 +197,6 @@ static inline void mempool_dynamic_heap_alloc_reset(const uint32_t core_id, cons
     // Dynamically allocate the space for allocators 
     init_dynamic_heap_alloc(num_partition); 
     for (uint32_t part_id=0; part_id<num_partition; ++part_id){
-      printf("Dynamic Heap Allocator [%d] - [%p] - [%d]\n", part_id, seq_heap_base, seq_heap_size);
       alloc_t *dynamic_heap_allocator = get_dynamic_heap_alloc(part_id);
       alloc_init(dynamic_heap_allocator, (uint32_t *)seq_heap_base, seq_heap_size);
       seq_heap_base += seq_heap_size;

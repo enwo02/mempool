@@ -82,23 +82,16 @@ canary_chain_t *first_canary = (canary_chain_t *)0x1000;
 // Initialization
 // ----------------------------------------------------------------------------
 void alloc_init(alloc_t *alloc, void *base, const uint32_t size) {
-  printf("DEBUG: Alloc init: base: %p - size: %d\n", base, size);
   // Create first block at base address aligned up
   uint32_t aligned_base = ALIGN_UP((uint32_t)base, MIN_BLOCK_SIZE);
-  printf("aligned_base: %p\n", aligned_base);
   alloc_block_t *block_ptr = (alloc_block_t *)aligned_base;
   // Calculate block size aligned down
   uint32_t block_size = size - ((uint32_t)block_ptr - (uint32_t)base);
   block_size = ALIGN_DOWN(block_size, MIN_BLOCK_SIZE);
 
-  // DEBUG
-  printf("base: %p - size: %d - block_ptr: %p - block_size: %d\n", base, size, block_ptr, block_size);
   // Setup allocator
-  printf("1\n");
   block_ptr->size = block_size;
-  printf("2\n");
   block_ptr->next = NULL;
-  printf("3\n");
   alloc->first_block = block_ptr;
 }
 

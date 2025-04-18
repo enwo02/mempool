@@ -15,8 +15,11 @@
 // limitations under the License.
 
 // To run (if config not changed the clean can be removed): 
-// Minpool: make -C spatz_apps/auto_benchmark clean dotp-dyn config=minpool_spatz4_fpu log=false sim=sim cores=4
-// Mempool: make -C spatz_apps/auto_benchmark clean dotp-dyn config=mempool_spatz4_fpu log=false sim=sim
+// MinPool:  make -C spatz_apps/auto_benchmark clean dotp-dyn config=minpool_spatz4_fpu log=false sim=sim cores=4
+// MemPool:  make -C spatz_apps/auto_benchmark clean dotp-dyn size=16384 cores=64 config=mempool_spatz4_fpu sim=sim log=false
+//           make -C spatz_apps/auto_benchmark clean dotp-dyn size=65536 cores=64 config=mempool_spatz4_fpu sim=sim log=false
+// TeraPool: make -C spatz_apps/auto_benchmark clean dotp-dyn size=65536 config=terapool_spatz8_fpu log=false sim=sim cores=128
+//           make -C spatz_apps/auto_benchmark clean dotp-dyn size=131072 config=terapool_spatz8_fpu log=false sim=sim cores=128
 
 // Author: Diyou Shen     <dishen@student.ethz.ch>
 //         Matteo Perotti <mperotti@iis.ee.ethz.ch>
@@ -42,9 +45,6 @@ uint32_t timer = (uint32_t)-1;
 // 32-bit dot-product: a * b
 void fdotp_v32b_p1(const float *a, const float *b, uint32_t round, uint32_t dim, uint32_t cid) {
   for (uint32_t rnd = 0; rnd < round; rnd ++) {
-    // if(cid == 0) {
-    //   printf("addr a: %08X\n", a);
-    // }
     // Load chunk a and b
     asm volatile("vle32.v v8,  (%0)" ::"r"(a));
     a += dim;
@@ -110,16 +110,11 @@ int main() {
 
   if (cid == 0) {
     printf("In sp-dotp-dynamic script\n");
-    printf("__heap_start: %08X\n", &__heap_start);
-    printf("__l1_end: %08X\n", &__l1_end);
     // Initialize the allocator
     alloc_init(&alloc_l1, (void *)&__heap_start, (uint32_t)&__l1_end - (uint32_t)&__heap_start);
-    printf("HERE1\n");
     // Initialize and reset the sequetial heap
     mempool_dynamic_heap_alloc_init(cid, group_factor);
-    printf("HERE2\n");
-    mempool_dynamic_heap_alloc_reset(cid, group_factor, __heap_seq_start); // 0x4000
-    printf("HERE3\n");
+    mempool_dynamic_heap_alloc_reset(cid, group_factor, __heap_seq_start); // Minpool: __heap_seq_start = 0x4000
   }
 
   // init partition info
