@@ -14,7 +14,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// To run: make -C spatz_apps/auto_benchmark dotp-dyn config=minpool_spatz4_fpu log=false sim=sim cores=4
+// To run (if config not changed the clean can be removed): 
+// Minpool: make -C spatz_apps/auto_benchmark clean dotp-dyn config=minpool_spatz4_fpu log=false sim=sim cores=4
+// Mempool: make -C spatz_apps/auto_benchmark clean dotp-dyn config=mempool_spatz4_fpu log=false sim=sim
 
 // Author: Diyou Shen     <dishen@student.ethz.ch>
 //         Matteo Perotti <mperotti@iis.ee.ethz.ch>
@@ -101,18 +103,23 @@ int main() {
   bool use_sequential_region = true;
 
   // Sequential heap parameters
-  uint32_t group_factor = 4;
+  uint32_t group_factor = num_cores; // 4 for minpool. 64 for mempool, 128 for terapool
   uint32_t num_partition = mempool_get_tile_count() / group_factor;
 
   uint32_t tiles_per_partition = 1;
 
   if (cid == 0) {
     printf("In sp-dotp-dynamic script\n");
+    printf("__heap_start: %08X\n", &__heap_start);
+    printf("__l1_end: %08X\n", &__l1_end);
     // Initialize the allocator
     alloc_init(&alloc_l1, (void *)&__heap_start, (uint32_t)&__l1_end - (uint32_t)&__heap_start);
+    printf("HERE1\n");
     // Initialize and reset the sequetial heap
     mempool_dynamic_heap_alloc_init(cid, group_factor);
+    printf("HERE2\n");
     mempool_dynamic_heap_alloc_reset(cid, group_factor, __heap_seq_start); // 0x4000
+    printf("HERE3\n");
   }
 
   // init partition info

@@ -510,6 +510,7 @@ module mempool_cluster
         .dma_req_valid_i         (dma_req_group_q_valid[g]                                        ),
         .dma_req_ready_o         (dma_req_group_q_ready[g]                                        ),
         .dma_allocated_size_sel_i(allocated_size_sel                                              ),
+        .dma_mode_i              (dma_mode_i                                                      ),
         // DMA status
         .dma_meta_o              (dma_meta[g]                                                     ),
         // AXI interface

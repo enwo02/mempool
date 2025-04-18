@@ -579,7 +579,7 @@ module mempool_group
 
     `FF(dma_meta_o, dma_meta_cut, '0, clk_i, rst_ni);
 
-    idma_distributed_midend #(
+    idma_distributed_midend_v2 #(
       .NoMstPorts     (NumDmasPerGroup                         ),
       .DmaRegionWidth (NumBanksPerGroup*4/NumDmasPerGroup      ),
       .DmaRegionStart (TCDMBaseAddr                            ),
@@ -594,6 +594,9 @@ module mempool_group
       .valid_i     (dma_req_cut_valid),
       .ready_o     (dma_req_cut_ready),
       .meta_o      (dma_meta_cut     ),
+      // partition
+      .allocated_size_i(dma_allocated_size_sel_i),
+      .dma_mode_i      (dma_mode_i),
       .burst_req_o (dma_req          ),
       .valid_o     (dma_req_valid    ),
       .ready_i     (dma_req_ready    ),
@@ -1009,7 +1012,7 @@ module mempool_group
     logic      [NumDmasPerGroup-1:0] dma_req_ready;
     dma_meta_t [NumDmasPerGroup-1:0] dma_meta;
 
-    idma_distributed_midend #(
+    idma_distributed_midend_v2 #(
       .NoMstPorts     (NumDmasPerGroup                   ),
       .DmaRegionWidth (NumBanksPerGroup*4/NumDmasPerGroup),
       .DmaRegionStart (TCDMBaseAddr                      ),
@@ -1024,6 +1027,9 @@ module mempool_group
       .valid_i     (dma_req_cut_valid),
       .ready_o     (dma_req_cut_ready),
       .meta_o      (dma_meta_cut     ),
+      // partition
+      .allocated_size_i(dma_allocated_size_sel_i),
+      .dma_mode_i      (dma_mode_i),
       .burst_req_o (dma_req          ),
       .valid_o     (dma_req_valid    ),
       .ready_i     (dma_req_ready    ),

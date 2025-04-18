@@ -24,7 +24,7 @@ sources:
   # Level 3: MemPool
   # - src/midends/idma_split_midend.sv
   - src/midends/idma_split_midend_v2.sv
-  #- src/midends/idma_distributed_midend.sv
+  # - src/midends/idma_distributed_midend.sv
   - src/midends/idma_distributed_midend_v2.sv
   - src/frontends/mempool/mempool_dma_frontend_reg_pkg.sv
   - src/frontends/mempool/mempool_dma_frontend_reg_top.sv
