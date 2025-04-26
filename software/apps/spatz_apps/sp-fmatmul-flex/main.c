@@ -89,6 +89,21 @@ void print_matrix(float const *matrix, uint32_t num_rows,
   }
 }
 
+void print_float_matrix(float const *matrix, uint32_t num_rows,
+  uint32_t num_columns) {
+printf("0x%8X\n", (uint32_t)matrix);
+for (uint32_t i = 0; i < num_rows; ++i) {
+for (uint32_t j = 0; j < num_columns; ++j) {
+float val = matrix[i * num_columns + j];
+int int_part = (int)val;
+int decimal_part = (int)((val - int_part) * 10);
+if (decimal_part < 0) decimal_part = -decimal_part;
+printf("%4d.%1d ", int_part, decimal_part);
+}
+printf("\n");
+}
+}
+
 // Matrix A: MxN
 // Matrix B: NxP
 // Matrix C: MxP
@@ -133,38 +148,12 @@ int main() {
     p_end   = gemm_l.P / split_p_count * ((core_gid % split_p_count) + 1);
     m_start = dim_group * gid + kernel_size * (core_gid / split_p_count);
     m_end   = dim_group * gid + kernel_size * (core_gid / split_p_count + 1);
-    if(cid == 0) {
-      printf("SPLIT P\n");
-      printf("m_start = %d\n", m_start);
-      printf("m_end = %d\n", m_end);
-      printf("dim_group = %d\n", dim_group);
-      printf("gid = %d\n", gid);
-      printf("kernel_size = %d\n", kernel_size);
-      printf("core_gid = %d\n", core_gid);
-      printf("split_p_count = %d\n", split_p_count);
-      printf("split_m_count = %d\n", split_m_count);
-      printf("dim_group = %d\n", dim_group);
-      printf("active_groups = %d\n", active_groups);
-      printf("split_p_count = %d (sizeof: %zu)\n", split_p_count, sizeof(split_p_count));
-      printf("\n");
-    }
   } else {
     // Work over complete P dimension
     p_start = 0;
     p_end   = gemm_l.P;
     m_start = dim_group * gid + (dim_group / cores_per_group) * core_gid;
     m_end   = dim_group * gid + (dim_group / cores_per_group) * (core_gid + 1);
-    if(cid == 0) {
-      printf("ELSE\n");
-    }
-  }
-
-  if (cid == 0) {
-    printf("Before copy\n");
-    printf("m_start = %d\n", m_start);
-    printf("m_end = %d\n", m_end);
-    printf("p_start = %d\n", p_start);
-    printf("p_end = %d\n", p_end);
   }
 
   // Wait for all cores to finish
@@ -230,7 +219,6 @@ int main() {
     // End dump
     if (cid == 0)
       mempool_stop_benchmark();
-      printf("End dump\n");
 
     // End timer and check if new best runtime
     timer_end = mempool_get_timer();
@@ -263,7 +251,17 @@ int main() {
     if (error != 0) {
       printf("Error core %d: c[%d]=%x\n", cid, error, (int)c[error]);
       return error;
+    } else {
+      printf("Checksum is correct.\n");
     }
+    // // Print result and checksum
+    // printf("Result:\n");
+    // //print_matrix(c, gemm_l.M, gemm_l.P);
+    // print_float_matrix(c, gemm_l.M, gemm_l.P);
+    // printf("Checksum of result:\n");
+    // print_matrix(r, 1, gemm_l.M);
+    // printf("Checksum result:\n");
+    // print_matrix(gemm_checksum, 1, gemm_l.M);
   }
 
   // Wait for core 0 to finish displaying results

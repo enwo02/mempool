@@ -234,20 +234,8 @@ void matmul_8xVL(float *c, const float *a, const float *b,
                  const unsigned int m_start, const unsigned int m_end,
                  const unsigned int N, const unsigned int P,
                  const unsigned int p_start, const unsigned int p_end) {
-
-  if(mempool_get_core_id() == 0){
-    printf("In matmul_2xVL\n");
-    printf("m_start = %d\n", m_start);
-    printf("m_end = %d\n", m_end);
-    printf("N = %d\n", N);
-    printf("P = %d\n", P);
-    printf("p_start = %d\n", p_start);
-    printf("p_end = %d\n", p_end);
-  }
   unsigned int p = p_start;
   while (p < p_end) {
-    if(mempool_get_core_id() == 0)
-      printf("p = %d p_end = %d\n", p, p_end);
     // Calculate the vl
     size_t gvl;
 
