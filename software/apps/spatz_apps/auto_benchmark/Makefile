@@ -205,6 +205,23 @@ fmatmul: log_clean
 		config=$(config) make -C $(hw_path) $(sim) app=spatz_apps/sp-fmatmul-opt; \
 	fi
 
+# fmatmul-flex kernel, only support square matrix when using this Makefile, with address scrambling
+.PHONY: fmatmul-flex
+fmatmul-flex: log_clean
+	$(python) $(ROOT_DIR)/gen_config.py "fmatmul" 32 $(size) $(cores)
+	$(python) $(app_path)/spatz_apps/sp-fmatmul-flex/script/gen_data.py --cfg $(ROOT_DIR)/matmul.json
+	config=$(config) make -C $(app_path) spatz_apps/sp-fmatmul-flex >> $(ROOT_DIR)/buildsw.log
+	if [ "$(log)" = "true" ]; then \
+		config=$(config) make -C $(hw_path) $(sim) app=spatz_apps/sp-fmatmul-flex >> $(ROOT_DIR)/result.log; \
+		if [ "$(outfile)" = "false" ]; then \
+			$(python) $(ROOT_DIR)/write_result.py $(ROOT_DIR)/result.log $(ROOT_DIR)/results/$(config)_fmatmul.txt $(config); \
+		else \
+			$(python) $(ROOT_DIR)/write_result.py $(ROOT_DIR)/result.log $(ROOT_DIR)/results/$(outfile).txt $(config); \
+		fi \
+	else \
+		config=$(config) make -C $(hw_path) $(sim) app=spatz_apps/sp-fmatmul-flex; \
+	fi
+
 # imatmul kernel, only support square matrix when using this Makefile
 .PHONY: imatmul
 imatmul: log_clean

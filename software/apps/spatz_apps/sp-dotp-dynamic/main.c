@@ -15,11 +15,9 @@
 // limitations under the License.
 
 // To run (if config not changed the clean can be removed): 
-// MinPool:  make -C spatz_apps/auto_benchmark clean dotp-dyn config=minpool_spatz4_fpu log=false sim=sim cores=4
-// MemPool:  make -C spatz_apps/auto_benchmark clean dotp-dyn size=16384 cores=64 config=mempool_spatz4_fpu sim=sim log=false
-//           make -C spatz_apps/auto_benchmark clean dotp-dyn size=65536 cores=64 config=mempool_spatz4_fpu sim=sim log=false
-// TeraPool: make -C spatz_apps/auto_benchmark clean dotp-dyn size=65536 config=terapool_spatz8_fpu log=false sim=sim cores=128
-//           make -C spatz_apps/auto_benchmark clean dotp-dyn size=131072 config=terapool_spatz8_fpu log=false sim=sim cores=128
+// MinPool:  make -C spatz_apps/auto_benchmark clean dotp-dyn size=4096   cores=4   config=minpool_spatz4_fpu  sim=sim log=false
+// MemPool:  make -C spatz_apps/auto_benchmark clean dotp-dyn size=65536  cores=64  config=mempool_spatz4_fpu  sim=sim log=false
+// TeraPool: make -C spatz_apps/auto_benchmark clean dotp-dyn size=131072 cores=128 config=terapool_spatz8_fpu sim=sim log=false  
 
 // Author: Diyou Shen     <dishen@student.ethz.ch>
 //         Matteo Perotti <mperotti@iis.ee.ethz.ch>
@@ -82,8 +80,7 @@ int main() {
   const uint32_t is_core_active = cid < active_cores;
   const uint32_t dim = dotp_l.M;
 
-  // calculate the number of rounds we need
-  // the optimal settings for lmul is 4 for MemPool, 2 for TeraPool, 8 for MinPool
+  // Optimal settings for lmul: Minpool=8, MemPool=4, TeraPool=2
   const uint32_t lmul = 8;
   const uint32_t vlen_elem = VLEN / 32;
   const uint32_t max_vl = vlen_elem * lmul;
@@ -92,7 +89,7 @@ int main() {
   const uint32_t round = (dim > dim_per_round) ? dim/dim_per_round : 1;
 
   extern uint32_t __heap_start;     // Start of interleaved heap
-  extern uint32_t __heap_seq_start; // Start of sequential heap
+  extern uint32_t __heap_seq_start; // Start of sequential heap, MinPool=0x4000
   extern uint32_t __l1_end;         // End of total L1 memory (and sequential heap)
   extern alloc_t alloc_l1;
 
@@ -103,7 +100,7 @@ int main() {
   bool use_sequential_region = true;
 
   // Sequential heap parameters
-  uint32_t group_factor = num_cores; // 4 for minpool. 64 for mempool, 128 for terapool
+  uint32_t group_factor = num_cores; // MinPool=4, MemPool=64, TeraPool=128
   uint32_t num_partition = mempool_get_tile_count() / group_factor;
 
   uint32_t tiles_per_partition = 1;
@@ -114,7 +111,7 @@ int main() {
     alloc_init(&alloc_l1, (void *)&__heap_start, (uint32_t)&__l1_end - (uint32_t)&__heap_start);
     // Initialize and reset the sequetial heap
     mempool_dynamic_heap_alloc_init(cid, group_factor);
-    mempool_dynamic_heap_alloc_reset(cid, group_factor, __heap_seq_start); // Minpool: __heap_seq_start = 0x4000
+    mempool_dynamic_heap_alloc_reset(cid, group_factor, __heap_seq_start);
   }
 
   // init partition info
@@ -139,7 +136,7 @@ int main() {
   // Initialize matrices
   if (cid == 0) {
     if (use_sequential_region){
-      // Dynamic memory allocation (sequential region)--------------------------
+      // Dynamic memory allocation (sequential region)-----------------------
       printf("Using sequential region\n");
       alloc_matrix(&a, dim, tiles_per_partition, num_partition);
       alloc_matrix(&b, dim, tiles_per_partition, num_partition);
@@ -147,10 +144,9 @@ int main() {
       // Dynamic memory allocation (interleaved region)----------------------
       a = (float *)simple_malloc(dim * sizeof(float));
       b = (float *)simple_malloc(dim * sizeof(float));
-      // Moving the data
-      
     }
 
+    // Moving the data
     dma_memcpy_blocking(a, dotp_A_dram, dim * sizeof(float));
     dma_memcpy_blocking(b, dotp_B_dram, dim * sizeof(float));
     // Print the addresses of the allocated memory
@@ -161,7 +157,6 @@ int main() {
     for (uint32_t i = 0; i <= active_cores; i ++) {
       result[i] = 0;
     }
-    
   }
 
   // Wait for all cores to finish
@@ -198,7 +193,7 @@ int main() {
     if (cid == 0)
       timer_start = mempool_get_timer();
 
-    fdotp_v32b_p1(a_int, b_int, round, dim_per_round/num_cores, cid); //coud be wrongly SOFTCODED
+    fdotp_v32b_p1(a_int, b_int, round, dim_per_round/num_cores, cid);
   }
 
   mempool_barrier(num_cores);
@@ -217,19 +212,6 @@ int main() {
     for (uint32_t i = 0; i < active_cores; ++i)
       *final_store += result[i];
   }
-
-  // For debugging: print results per core
-  // if (cid == 0) {
-  //   printf("Results array calculated contents:\n");
-  //   // Print each element as hex to avoid float parsing
-  //   for (uint32_t i = 0; i <= active_cores; i++) {
-  //       // Print results1
-  //  themselfs
-  //       printf("result[%u]: %08x\n", i, *(uint32_t*)(&result[i]));
-  //       // Print address of result
-  //       //printf("addr result[%u]: %08x\n", i, &result[i]);
-  //   }
-  // }
 
   // End dump
   if (cid < active_cores)

@@ -20,7 +20,8 @@ typedef struct {
   uint32_t status;        // set to 1 if used
 } partition_status_t;
 
-// partition_status_t volatile partition_status[NUM_PART_REGION] __attribute__((section(".l1")));
+// Comment for dotp-dyn and uncomment for fmatmul-flex
+partition_status_t volatile partition_status[NUM_PART_REGION] __attribute__((section(".l1")));
 
 
 void alloc_matrix(float *volatile * target, uint32_t size, uint32_t group_factor, uint32_t num_matrix);
