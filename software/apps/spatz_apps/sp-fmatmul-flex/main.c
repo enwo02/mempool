@@ -20,9 +20,9 @@
 //         Elio Wanner, ETH Zurich
 
 // To run (if config not changed the clean can be removed): 
-// MinPool:  make -C spatz_apps/auto_benchmark clean fmatmul-flex size=16 cores=4 config=minpool_spatz4_fpu  sim=sim log=false
-// MemPool:  
-// TeraPool: 
+// MinPool:  make -C spatz_apps/auto_benchmark clean fmatmul-flex size=16  cores=4   config=minpool_spatz4_fpu  sim=sim log=false
+// MemPool:  make -C spatz_apps/auto_benchmark clean fmatmul-flex size=64  cores=64  config=mempool_spatz4_fpu  sim=sim log=false
+// TeraPool: make -C spatz_apps/auto_benchmark clean fmatmul-flex size=128 cores=128 config=terapool_spatz8_fpu sim=sim log=false
 
 #include <stdbool.h>
 #include <stdint.h>
