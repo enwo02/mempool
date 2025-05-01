@@ -12,7 +12,7 @@
 
 // ------ Partition Status Info ------ //
 #define NUM_ELEMENTS_PER_ROW (BANKING_FACTOR * N_FPU * NUM_TILES) // Minpool: 16 * 4 = numberOfBanksPerTile * numberOfTiles 
-#define NUM_PART_REGION      (2)  // STILL HARDCODED, for dotp-dyn this is 2
+#define NUM_PART_REGION      (3)  // STILL HARDCODED, for dotp-dyn this is 2
 // extern uint32_t NUM_PART_REGION; // number of partition regions
 
 typedef struct {
@@ -20,8 +20,8 @@ typedef struct {
   uint32_t status;        // set to 1 if used
 } partition_status_t;
 
-// Comment for dotp-dyn and uncomment for fmatmul-flex
-partition_status_t volatile partition_status[NUM_PART_REGION] __attribute__((section(".l1")));
+// Comment for dotp-dyn and fmatmul-flex
+//partition_status_t volatile partition_status[NUM_PART_REGION] __attribute__((section(".l1")));
 
 
 void alloc_matrix(float *volatile * target, uint32_t size, uint32_t group_factor, uint32_t num_matrix);

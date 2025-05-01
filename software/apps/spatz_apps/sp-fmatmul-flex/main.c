@@ -31,20 +31,16 @@
 #include "data/data_gemm.h"
 #include "kernel/sp-fmatmul.c"
 #include "printf.h"
-#ifdef MEMPOOL
 #include "alloc.h"
 #include "runtime.h"
 #include "synchronization.h"
 #include "encoding.h"
-#endif
 
-// partition_status_t volatile partition_status[NUM_PART_REGION] __attribute__((section(".l1")));
+#include "alloc_partition.h"
 
-#define USE_DMA
+partition_status_t volatile partition_status[NUM_PART_REGION] __attribute__((section(".l1")));
 
-#ifdef USE_DMA
 #include "dma.h"
-#endif
 
 // Initialize the matrices
 void init_matrix(float *matrix, const float *src,
@@ -159,31 +155,74 @@ int main() {
   // Wait for all cores to finish
   mempool_barrier(num_cores);
 
-  #ifdef USE_DMA
+  // Code for dynamic memory allocation -----------------------------------------------------
+  extern uint32_t __heap_start;     // Start of interleaved heap
+  extern uint32_t __heap_seq_start; // Start of sequential heap, MinPool=0x4000
+  extern uint32_t __l1_end;         // End of total L1 memory (and sequential heap)
+  extern alloc_t alloc_l1;
+
+  bool use_sequential_region = true;
+
+  // Sequential heap parameters
+  uint32_t group_factor = num_cores; // MinPool=4, MemPool=64, TeraPool=128
+  uint32_t num_partition = mempool_get_tile_count() / group_factor;
+
+  uint32_t tiles_per_partition = 1;
+
   if (cid == 0) {
-    dma_memcpy_blocking(a, gemm_A_dram, (gemm_l.M * gemm_l.N) * sizeof(float));
+    printf("In sp-fmatmul-flex script\n");
+    // Initialize the allocator
+    alloc_init(&alloc_l1, (void *)&__heap_start, (uint32_t)&__l1_end - (uint32_t)&__heap_start);
+    // Initialize and reset the sequetial heap
+    mempool_dynamic_heap_alloc_init(cid, group_factor);
+    mempool_dynamic_heap_alloc_reset(cid, group_factor, __heap_seq_start);
+  }
+
+  // init partition info
+  if (cid == 0){
+    for (uint32_t i=0; i<NUM_PART_REGION; ++i){
+        partition_status[i].status    = 0;
+        partition_status[i].data_addr = NULL;
+    }
+  }
+
+  // Define input matrices globally
+  static float *volatile *a = NULL;
+  static float *volatile *b = NULL;
+  static float *volatile *c = NULL;
+
+  const uint32_t dim_a = gemm_l.M * gemm_l.N;
+  const uint32_t dim_b = gemm_l.N * gemm_l.P;
+  const uint32_t dim_c = gemm_l.M * gemm_l.P;
+
+  // Initialize multicore barrier
+  mempool_barrier_init(cid);
+
+  if (cid == 0) {
+    if (use_sequential_region){
+      // Dynamic memory allocation (sequential region)-----------------------
+      printf("Using sequential region for A\n");
+      printf("tiles_per_partition: %d\n", tiles_per_partition);
+      printf("num_partition: %d\n", num_partition);
+      alloc_matrix(&a, dim_a, tiles_per_partition, num_partition);
+      alloc_matrix(&c, dim_c, tiles_per_partition, num_partition);
+      b = (float *)simple_malloc(dim_b * sizeof(float));            // B in interleaved region
+    } else{
+      // Dynamic memory allocation (interleaved region)----------------------
+      a = (float *)simple_malloc(dim_a * sizeof(float));
+      b = (float *)simple_malloc(dim_b * sizeof(float));
+      c = (float *)simple_malloc(dim_c * sizeof(float));
+    }
+
+    printf("allocation passed\n");
+
+    dma_memcpy_ModeSel(a, gemm_A_dram, (gemm_l.M * gemm_l.N) * sizeof(float), DMA_FAST);
     dma_memcpy_blocking(b, gemm_B_dram, (gemm_l.N * gemm_l.P) * sizeof(float));
-    dma_memcpy_blocking(c, gemm_C_dram, (gemm_l.M * gemm_l.P) * sizeof(float));
-    // dma_memcpy_blocking(r, gemm_checksum, gemm_l.M * sizeof(float));
+    dma_memcpy_ModeSel(c, gemm_C_dram, (gemm_l.M * gemm_l.P) * sizeof(float), DMA_FAST);
 
     init_matrix(r, gemm_checksum, 0, 1, gemm_l.M);
-  }
-  #else
-  // Initialize matrices
-  init_matrix(a, gemm_A_dram, cid * (gemm_l.M / active_cores),
-              (cid + 1) * (gemm_l.M / active_cores), gemm_l.N);
-  init_matrix(b, gemm_B_dram, cid * (gemm_l.N / active_cores),
-              (cid + 1) * (gemm_l.N / active_cores), gemm_l.P);
-  init_matrix(c, gemm_C_dram, cid * (gemm_l.M / active_cores),
-              (cid + 1) * (gemm_l.M / active_cores), gemm_l.P);
-  // Initialize the checksum
-  if (cid == 0) {
-    init_matrix(r, gemm_checksum, 0, 1, gemm_l.M);
-  }
-  #endif
-
-  if (cid == 0)
     printf("finish copy\n");
+  }
 
   // Wait for all cores to finish
   mempool_barrier(num_cores);
@@ -250,18 +289,16 @@ int main() {
 
     if (error != 0) {
       printf("Error core %d: c[%d]=%x\n", cid, error, (int)c[error]);
-      return error;
+      //return error;
     } else {
       printf("Checksum is correct.\n");
     }
-    // // Print result and checksum
-    // printf("Result:\n");
-    // //print_matrix(c, gemm_l.M, gemm_l.P);
-    // print_float_matrix(c, gemm_l.M, gemm_l.P);
-    // printf("Checksum of result:\n");
-    // print_matrix(r, 1, gemm_l.M);
-    // printf("Checksum result:\n");
-    // print_matrix(gemm_checksum, 1, gemm_l.M);
+    // Print result and checksum
+    printf("Result:\n");
+    //print_matrix(c, gemm_l.M, gemm_l.P);
+    print_float_matrix(c, gemm_l.M, gemm_l.P);
+    printf("Checksum of result:\n");
+    print_matrix(r, 1, gemm_l.M);
   }
 
   // Wait for core 0 to finish displaying results

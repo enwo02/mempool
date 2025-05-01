@@ -148,9 +148,9 @@ def emit_GEMM_layer(name="gemm", **kwargs):
 
     dtype = ctypes[str(kwargs["prec"])]
     if dtype != "char":
-        layer_str += f'{dtype} a[{m}*{n}]  __attribute__((section(".l1")));\n'
-        layer_str += f'{dtype} b[{n}*{p}]  __attribute__((section(".l1")));\n'
-        layer_str += f'{dtype} c[{m}*{p}]  __attribute__((section(".l1")));\n'
+        # layer_str += f'{dtype} a[{m}*{n}]  __attribute__((section(".l1")));\n'
+        # layer_str += f'{dtype} b[{n}*{p}]  __attribute__((section(".l1")));\n'
+        # layer_str += f'{dtype} c[{m}*{p}]  __attribute__((section(".l1")));\n'
         layer_str += f'{dtype} r[{m}]  __attribute__((section(".l1")));\n'
         layer_str += (
             f'static {dtype} {name}_A_dram [{m}*{n}] __attribute__((section(".data"))) = '
