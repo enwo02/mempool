@@ -164,6 +164,31 @@ fft-multi: log_clean
 		config=$(config) make -C $(hw_path) $(sim) app=spatz_apps/sp-fft-multi; \
 	fi
 
+.PHONY: fft-multi-flex
+fft-multi-flex: log_clean
+	@case "$(config)" in \
+	mempool*) \
+		$(python) $(ROOT_DIR)/gen_config.py "fft-multi" 32 $(size) $(cores) 1 1 0 64;; \
+	minpool*spatz4*) \
+		$(python) $(ROOT_DIR)/gen_config.py "fft-multi" 32 $(size) $(cores) 1 1 0 4;; \
+	minpool*spatz2*) \
+		$(python) $(ROOT_DIR)/gen_config.py "fft-multi" 32 $(size) $(cores) 1 1 0 8;; \
+	*) \
+		$(python) $(ROOT_DIR)/gen_config.py "fft-multi" 32 $(size) $(cores) 1 1 0 128;; \
+	esac
+	$(python) $(app_path)/spatz_apps/sp-fft-multi-flex/script/gen_data.py --cfg $(ROOT_DIR)/fft.json
+	config=$(config) make -C $(app_path) spatz_apps/sp-fft-multi-flex >> $(ROOT_DIR)/buildsw.log
+	if [ "$(log)" = "true" ]; then \
+		config=$(config) make -C $(hw_path) $(sim) app=spatz_apps/sp-fft-multi-flex >> $(ROOT_DIR)/result.log; \
+		if [ "$(outfile)" = "false" ]; then \
+			$(python) $(ROOT_DIR)/write_result.py $(ROOT_DIR)/result.log $(ROOT_DIR)/results/$(config)_fft_$(cores).txt $(config); \
+		else \
+			$(python) $(ROOT_DIR)/write_result.py $(ROOT_DIR)/result.log $(ROOT_DIR)/results/$(outfile).txt $(config); \
+		fi \
+	else \
+		config=$(config) make -C $(hw_path) $(sim) app=spatz_apps/sp-fft-multi-flex; \
+	fi
+
 # bandwidth test
 .PHONY: bandwidth
 bandwidth: log_clean

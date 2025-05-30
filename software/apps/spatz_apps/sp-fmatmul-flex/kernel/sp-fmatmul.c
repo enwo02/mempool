@@ -125,14 +125,9 @@ void matmul_4xVL(float *c, const float *a, const float *b,
                  const unsigned int p_start, const unsigned int p_end) {
 
   unsigned int p = p_start;
-  if (mempool_get_core_id() == 0){
-    printf("Core 0-----------------------\n");
-    printf("p_start: %d, p_end: %d\n", p_start, p_end);
-    printf("m_start: %d, m_end: %d\n", m_start, m_end);
-  }
+  size_t gvl;
   while (p < p_end) {
     // Calculate the vl
-    size_t gvl;
     asm volatile("vsetvli %[gvl], %[vl], e32, m4, ta, ma"
                  : [gvl] "=r"(gvl)
                  : [vl] "r"(p_end - p));
@@ -166,24 +161,6 @@ void matmul_4xVL(float *c, const float *a, const float *b,
         b__ += P;
 
         a__ = a_ + ++n;
-
-        // if(mempool_get_core_id() == 0){
-        //   printf("Core 0-----------------------\n");
-        //   printf("n: %d\n", n);
-        //   printf("a__: %d\n", (uint32_t)a__);
-        //   printf("b__: %d\n", (uint32_t)b__);
-
-
-        //   printf("t0 (×1000): %d\n", (int)(t0*1000));
-        //   printf("t1 (×1000): %d\n", (int)(t1*1000));
-        //   printf("t2 (×1000): %d\n", (int)(t2*1000));
-        //   printf("t3 (×1000): %d\n", (int)(t3*1000));
-
-        //   printf("Address of t0: %p\n", (void*)&t0);
-        //   printf("Address of t1: %p\n", (void*)&t1);
-        //   printf("Address of t2: %p\n", (void*)&t2);
-        //   printf("Address of t3: %p\n", (void*)&t3);
-        // }
 
         if (n == 1) {
           // v0 = v16 * t0

@@ -19,10 +19,15 @@
 // Author: Domenic Wüthrich, ETH Zurich
 //         Elio Wanner, ETH Zurich
 
+// This kernel runs but does currently doesn't have performance improvements through address scrambling.
+
 // To run (if config not changed the clean can be removed): 
 // MinPool:  make -C spatz_apps/auto_benchmark clean fmatmul-flex size=16  cores=4   config=minpool_spatz4_fpu  sim=sim log=false
+//           make -C spatz_apps/auto_benchmark clean fmatmul-flex size=64  cores=4   config=minpool_spatz4_fpu  sim=sim log=false
 // MemPool:  make -C spatz_apps/auto_benchmark clean fmatmul-flex size=64  cores=64  config=mempool_spatz4_fpu  sim=sim log=false
+//           make -C spatz_apps/auto_benchmark clean fmatmul-flex size=256 cores=64  config=mempool_spatz4_fpu  sim=sim log=false
 // TeraPool: make -C spatz_apps/auto_benchmark clean fmatmul-flex size=128 cores=128 config=terapool_spatz8_fpu sim=sim log=false
+//           make -C spatz_apps/auto_benchmark clean fmatmul-flex size=256 cores=128 config=terapool_spatz8_fpu sim=sim log=false
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -87,17 +92,17 @@ void print_matrix(float const *matrix, uint32_t num_rows,
 
 void print_float_matrix(float const *matrix, uint32_t num_rows,
   uint32_t num_columns) {
-printf("0x%8X\n", (uint32_t)matrix);
-for (uint32_t i = 0; i < num_rows; ++i) {
-for (uint32_t j = 0; j < num_columns; ++j) {
-float val = matrix[i * num_columns + j];
-int int_part = (int)val;
-int decimal_part = (int)((val - int_part) * 10);
-if (decimal_part < 0) decimal_part = -decimal_part;
-printf("%4d.%1d ", int_part, decimal_part);
-}
-printf("\n");
-}
+  printf("0x%8X\n", (uint32_t)matrix);
+  for (uint32_t i = 0; i < num_rows; ++i) {
+  for (uint32_t j = 0; j < num_columns; ++j) {
+  float val = matrix[i * num_columns + j];
+  int int_part = (int)val;
+  int decimal_part = (int)((val - int_part) * 10);
+  if (decimal_part < 0) decimal_part = -decimal_part;
+  printf("%4d.%1d ", int_part, decimal_part);
+  }
+  printf("\n");
+  }
 }
 
 // Matrix A: MxN
@@ -115,8 +120,6 @@ int main() {
   const uint32_t active_cores = cores_per_group * active_groups;
   const uint32_t is_core_active = cid < active_cores;
 
-  const uint32_t measure_iterations = 1;
-
   uint32_t timer_start, timer_end, timer;
 
   uint32_t m_start, m_end;
@@ -129,7 +132,7 @@ int main() {
   // Reset timer
   timer = (uint32_t)-1;
 
-  // Set matrix dimension (Dyiou: this can be left unchanged)
+  // Set matrix dimension (Diyou: this can be left unchanged)
   kernel_size = 4; // STILL HARDCODED
 
   // Block dimension of group
@@ -152,6 +155,11 @@ int main() {
     m_end   = dim_group * gid + (dim_group / cores_per_group) * (core_gid + 1);
   }
 
+  if (cid == 0) {
+    printf("Core %d: m_start=%d, m_end=%d, p_start=%d, p_end=%d\n", cid, m_start, m_end, p_start, p_end);
+    printf("Kernel size: %d\n", kernel_size);
+  }
+
   // Wait for all cores to finish
   mempool_barrier(num_cores);
 
@@ -172,10 +180,10 @@ int main() {
   if (cid == 0) {
     printf("In sp-fmatmul-flex script\n");
     // Initialize the allocator
-    alloc_init(&alloc_l1, (void *)&__heap_start, (uint32_t)&__l1_end - (uint32_t)&__heap_start);
+    alloc_init(&alloc_l1, (void*)&__heap_start, (uint32_t)&__l1_end - (uint32_t)&__heap_start);
     // Initialize and reset the sequetial heap
     mempool_dynamic_heap_alloc_init(cid, group_factor);
-    mempool_dynamic_heap_alloc_reset(cid, group_factor, __heap_seq_start);
+    mempool_dynamic_heap_alloc_reset(cid, group_factor, (uint32_t)&__heap_seq_start);
   }
 
   // init partition info
@@ -202,11 +210,10 @@ int main() {
     if (use_sequential_region){
       // Dynamic memory allocation (sequential region)-----------------------
       printf("Using sequential region for A\n");
-      printf("tiles_per_partition: %d\n", tiles_per_partition);
-      printf("num_partition: %d\n", num_partition);
-      alloc_matrix(&a, dim_a, tiles_per_partition, num_partition);
-      alloc_matrix(&c, dim_c, tiles_per_partition, num_partition);
-      b = (float *)simple_malloc(dim_b * sizeof(float));            // B in interleaved region
+      alloc_matrix(&a, dim_a, 1, num_partition);            // A in sequential region, with folding after each tile
+      //alloc_matrix(&c, dim_c, 1, num_partition); 
+      b = (float *)simple_malloc(dim_b * sizeof(float));    // B in interleaved region
+      c = (float *)simple_malloc(dim_c * sizeof(float));    // C in interleaved region
     } else{
       // Dynamic memory allocation (interleaved region)----------------------
       a = (float *)simple_malloc(dim_a * sizeof(float));
@@ -214,65 +221,59 @@ int main() {
       c = (float *)simple_malloc(dim_c * sizeof(float));
     }
 
-    printf("allocation passed\n");
+    printf("finished allocation\n");
+    
+    // Once DMA is fixed by Bowen, these lines should be used for DMA transfer
+    // dma_memcpy_ModeSel(a, gemm_A_dram, (gemm_l.M * gemm_l.N) * sizeof(float), DMA_FAST);
+    // dma_memcpy_blocking(b, gemm_B_dram, (gemm_l.N * gemm_l.P) * sizeof(float));
+    // dma_memcpy_ModeSel(c, gemm_C_dram, (gemm_l.M * gemm_l.P) * sizeof(float), DMA_FAST);
 
-    dma_memcpy_ModeSel(a, gemm_A_dram, (gemm_l.M * gemm_l.N) * sizeof(float), DMA_FAST);
-    dma_memcpy_blocking(b, gemm_B_dram, (gemm_l.N * gemm_l.P) * sizeof(float));
-    dma_memcpy_ModeSel(c, gemm_C_dram, (gemm_l.M * gemm_l.P) * sizeof(float), DMA_FAST);
+    dma_memcpy_blocking(a, gemm_A_dram, dim_a * sizeof(float));
+    dma_memcpy_blocking(b, gemm_B_dram, dim_b * sizeof(float));
+    dma_memcpy_blocking(c, gemm_C_dram, dim_c * sizeof(float));
 
     init_matrix(r, gemm_checksum, 0, 1, gemm_l.M);
-    printf("finish copy\n");
+    printf("finished copying\n");
   }
 
   // Wait for all cores to finish
   mempool_barrier(num_cores);
 
-  for (uint32_t i = 0; i < measure_iterations; ++i) {
-    // Calculate matmul
-    if (is_core_active) {
-      // Start timer
-      timer_start = mempool_get_timer();
-
-      // Start dump
-      if (cid == 0){
-        mempool_start_benchmark();
-      }
-
-      if (kernel_size == 2) {
-        matmul_2xVL(c, a, b, m_start, m_end, gemm_l.N, gemm_l.P, p_start,
-                    p_end);
-      } else if (kernel_size == 4) {
-        matmul_4xVL(c, a, b, m_start, m_end, gemm_l.N, gemm_l.P, p_start,
-                    p_end);
-      } else if (kernel_size == 8) {
-        matmul_8xVL(c, a, b, m_start, m_end, gemm_l.N, gemm_l.P, p_start,
-                    p_end);
-      } else {
-        return -2;
-      }
+  // Calculate matmul
+  if (is_core_active) {
+    // Start dump
+    if (cid == 0){
+      mempool_start_benchmark();
+      //timer_start = mempool_get_timer();
     }
 
-    // Wait for all cores to finish matmul
-    mempool_barrier(num_cores);
-
-    // End dump
-    if (cid == 0)
-      mempool_stop_benchmark();
-
-    // End timer and check if new best runtime
-    timer_end = mempool_get_timer();
-    uint32_t timer_temp = timer_end - timer_start;
-    if (cid == 0) {
-      if (timer_temp < timer) {
-        timer = timer_temp;
-      }
+    if (kernel_size == 2) {
+      timer_start = mempool_get_timer();
+      matmul_2xVL(c, a, b, m_start, m_end, gemm_l.N, gemm_l.P, p_start, p_end);
+    } else if (kernel_size == 4) {
+      timer_start = mempool_get_timer();
+      matmul_4xVL(c, a, b, m_start, m_end, gemm_l.N, gemm_l.P, p_start, p_end);
+    } else if (kernel_size == 8) {
+      timer_start = mempool_get_timer();
+      matmul_8xVL(c, a, b, m_start, m_end, gemm_l.N, gemm_l.P, p_start, p_end);
+    } else {
+      return -2;
     }
   }
 
+  // Wait for all cores to finish matmul
+  mempool_barrier(num_cores);
+
+  if (cid == 0) {
+    timer_end = mempool_get_timer();
+    timer = (timer_end - timer_start);
+    mempool_stop_benchmark();
+  }
+    
+
   // Check and display results
   if (cid == 0) {
-    long unsigned int performance =
-        1000 * 2 * gemm_l.M * gemm_l.P * gemm_l.N / timer;
+    long unsigned int performance = 1000 * 2 * gemm_l.M * gemm_l.P * gemm_l.N / timer;
     long unsigned int utilization = performance / (2 * active_cores * N_FPU);
 
     printf("\n----- (%dx%d) sp fmatmul -----\n", gemm_l.M, gemm_l.P);
@@ -282,10 +283,8 @@ int main() {
   }
 
   if (cid == 0) {
-    int error =
-        verify_matrix((float *)c, (const float *)r, gemm_l.M, gemm_l.P);
-    // int error =
-    //     verify_matrix((float *)c, (const float *)gemm_checksum, gemm_l.M, gemm_l.P);
+    int error = verify_matrix((float *)c, (const float *)r, gemm_l.M, gemm_l.P);
+    // int error = verify_matrix((float *)c, (const float *)gemm_checksum, gemm_l.M, gemm_l.P);
 
     if (error != 0) {
       printf("Error core %d: c[%d]=%x\n", cid, error, (int)c[error]);
@@ -293,12 +292,6 @@ int main() {
     } else {
       printf("Checksum is correct.\n");
     }
-    // Print result and checksum
-    printf("Result:\n");
-    //print_matrix(c, gemm_l.M, gemm_l.P);
-    print_float_matrix(c, gemm_l.M, gemm_l.P);
-    printf("Checksum of result:\n");
-    print_matrix(r, 1, gemm_l.M);
   }
 
   // Wait for core 0 to finish displaying results
