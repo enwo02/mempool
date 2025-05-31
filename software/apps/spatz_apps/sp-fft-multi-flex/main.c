@@ -19,7 +19,8 @@
 // KERNEL NOT WORKING ATM. Only started adjusting to FLEX, but not finished yet.
 
 // To run (if config not changed the clean can be removed): 
-// MinPool:  make -C spatz_apps/auto_benchmark clean fft-multi-flex size=512  cores=4   config=minpool_spatz4_fpu  sim=sim log=false
+// MinPool:  make -C spatz_apps/auto_benchmark clean fft-multi-flex size=512   cores=4   config=minpool_spatz4_fpu  sim=sim log=false
+// MemPool:  make -C spatz_apps/auto_benchmark clean fft-multi-flex size=2048  cores=16  config=mempool_spatz4_fpu  sim=sim log=false
 
 #include <stdio.h>
 #include <stdbool.h>
@@ -116,32 +117,38 @@ int main() {
   // Initialize multicore barrier
   mempool_barrier_init(cid);
 
-  if (cid == 0) {
-    if (use_sequential_region){
-      // Dynamic memory allocation (sequential region)-----------------------
-      printf("Using sequential region for A\n");
-      alloc_matrix(&samples, NFFT*2, 1, num_partition);            // A in sequential region, with folding after each tile
-    } else{
-      // Dynamic memory allocation (interleaved region)----------------------
-       samples = (float *)simple_malloc((NFFT*2) * sizeof(float));
-    }
-    printf("finished allocation\n");
-  }
-
   // Reset timer
   unsigned int timer = (unsigned int)-1;
   for (uint32_t n_fft = 0; n_fft < num_fft; n_fft ++) {
     if (cid == 0) {
-      printf("In sp-fft-multi-flex script\n");
+      printf(" \n");
+      // Allocate memory for each FFT---------------------------------------------------
+      if (use_sequential_region){
+        // Dynamic memory allocation (sequential region)-----------------------
+        printf("Using sequential region\n");
+        alloc_matrix(&samples[n_fft], NFFT*2, 16, num_partition);            // In sequential region, with folding after 16 tile
+      } else{
+        // Dynamic memory allocation (interleaved region)----------------------
+        printf("Using interleaved region\n");
+        samples[n_fft] = (float *)simple_malloc((NFFT*2) * sizeof(float));
+      }
+      printf("finished allocation for fft %u\n", n_fft);
+
+      // Copy samples to L1 -----------------------------------------------------------
+      printf("In DMA moving part\n");
+      printf("n_fft: %u, num_fft: %u, active_cores: %u\n", n_fft, num_fft, active_cores);
       // DMA has a problem with copying unaligned L1 and L2 data
       // Twiddle's size may not be a power of 2, so we'd better use mannual copy instead of DMA
-
+      printf("Will copy samples to L1\n");
       dma_memcpy_blocking(samples[n_fft],     samples_dram,   (NFFT*2) * sizeof(float));
+      printf("Copied samples\n");
+
       // Not necessary, but can make sure address of samples, buffer and out are aligned
       dma_memcpy_blocking(buffer[n_fft],      buffer_dram,    (NFFT*2) * sizeof(float));
       dma_memcpy_blocking(out[n_fft],         buffer_dram,    (NFFT*2) * sizeof(float));
 
     #ifdef USE_DMA
+      printf("in USE_DMA\n");
       dma_memcpy_blocking(twiddle_p1[n_fft],  twiddle_dram,   (NTWI_P1*2) * sizeof(float));
       dma_memcpy_blocking(twiddle_p1[n_fft],  twiddle_dram,   (NTWI_P1*2) * sizeof(float));
       dma_memcpy_blocking(store_idx[n_fft],   store_idx_dram, (log2_nfft2-1) * (NFFTpc >> 1) * sizeof(uint16_t));
@@ -155,6 +162,7 @@ int main() {
       }
       printf("finish copy fft %u!\n", n_fft);
     #else
+      printf("in !USE_DMA\n");
       if (CHECK)
         printf("load twi part 1\n");
       for (uint32_t i = 0; i < 2*NTWI_P1; i++) {
@@ -189,6 +197,10 @@ int main() {
       printf("finish copy fft %u!\n", n_fft);
     }
     #endif
+  }
+
+  if (cid == 0) {
+    printf("Finished copying data to L1\n");
   }
 
   // Wait for all cores to finish
