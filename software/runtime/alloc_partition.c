@@ -24,6 +24,7 @@ void alloc_matrix (float *volatile * target, uint32_t size, uint32_t group_facto
     // 1. Get allocator for sequential Heap region
     uint32_t total_size = size*num_matrix;
     alloc_t* alloc_heap = get_dynamic_heap_alloc(0);
+    //alloc_dump(alloc_heap);
 
     // 2. alloc a space, store the return address to the target
     *target = (float *)partition_malloc(alloc_heap, total_size*sizeof(uint32_t), total_size/NUM_ELEMENTS_PER_ROW);
