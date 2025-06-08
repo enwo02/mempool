@@ -21,20 +21,25 @@ extern partition_status_t volatile partition_status[NUM_PART_REGION];
 // @inp: (int32_t* volitile *) target       --- Where to store this pointer
 // @inp: (uint32_t)            group_factor --- GF_A/B/C
 void alloc_matrix (float *volatile * target, uint32_t size, uint32_t group_factor, uint32_t num_matrix){
+    printf("In alloc_matrix\n");
     // 1. Get allocator for sequential Heap region
     uint32_t total_size = size*num_matrix;
     alloc_t* alloc_heap = get_dynamic_heap_alloc(0);
-    //alloc_dump(alloc_heap);
+    alloc_dump(alloc_heap);
+
+    printf("Allocating matrix with size [%d] and group factor [%d]\n", total_size, group_factor);
 
     // 2. alloc a space, store the return address to the target
     *target = (float *)partition_malloc(alloc_heap, total_size*sizeof(uint32_t), total_size/NUM_ELEMENTS_PER_ROW);
 
+    printf("Allocated matrix at [%p] with size [%d]\n", *target, total_size);
+
     // 3. find which partition in free
     uint32_t pid=0;
     uint32_t avail=0;
-    // printf("Allocating matrix at [%p] with size [%d]\n", *target, total_size);
-    // printf("pid [%d] avail [%d]\n", pid, avail);
-    // printf("NUM_PART_REGION [%d]\n", NUM_PART_REGION);
+    printf("Allocating matrix at [%p] with size [%d]\n", *target, total_size);
+    printf("pid [%d] avail [%d]\n", pid, avail);
+    printf("NUM_PART_REGION [%d]\n", NUM_PART_REGION);
 
     while( (pid<NUM_PART_REGION) && (avail==0)){
         if (partition_status[pid].status==0){

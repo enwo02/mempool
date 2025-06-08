@@ -292,12 +292,12 @@ def main():
 
     # L1 Data
     #emit_str += 'float samples[{}]'.format(NUM_FFT) + '[{}]'.format(2 * NFFT) + ' __attribute__((section(".l1_prio")));\n'
-    emit_str += 'float buffer[{}]'.format(NUM_FFT) + '[{}]'.format(2 * NFFT) + ' __attribute__((section(".l1_prio")));\n'
-    emit_str += 'float out[{}]'.format(NUM_FFT) + '[{}]'.format(2 * NFFT) + ' __attribute__((section(".l1_prio")));\n'
+    #emit_str += 'float buffer[{}]'.format(NUM_FFT) + '[{}]'.format(2 * NFFT) + ' __attribute__((section(".l1_prio")));\n'
+    #emit_str += 'float out[{}]'.format(NUM_FFT) + '[{}]'.format(2 * NFFT) + ' __attribute__((section(".l1_prio")));\n'
     #emit_str += 'float twiddle_p1[{}]'.format(NUM_FFT) + '[{}]'.format(2 * N_TWID_P1) + ' __attribute__((section(".l1_prio")));\n'
     #emit_str += 'float twiddle_p2[{}]'.format(NUM_FFT) + '[{}]'.format(2 * N_TWID_P2 * CORES) + ' __attribute__((section(".l1_prio")));\n'
     #emit_str += 'uint16_t store_idx[{}]'.format(NUM_FFT) + '[{}]'.format(int(np.log2(NFFTpc / 2) * NFFTpc / 2)) + ' __attribute__((section(".l1_prio")));\n'
-    emit_str += 'uint32_t core_offset[{}]'.format(NUM_FFT) + '[{}]'.format(CORES) + ' __attribute__((section(".l1_prio")));\n'
+    #emit_str += 'uint32_t core_offset[{}]'.format(NUM_FFT) + '[{}]'.format(CORES) + ' __attribute__((section(".l1_prio")));\n'
 
     # L2 Data
     emit_str += 'static float samples_dram[{}]'.format(2 * NFFT) + ' __attribute__((section(".data"))) = {' + ', '.join(
