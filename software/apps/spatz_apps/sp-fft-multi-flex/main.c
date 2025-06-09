@@ -20,6 +20,7 @@
 
 // To run (if config not changed the clean can be removed): 
 // MinPool:  make -C spatz_apps/auto_benchmark clean fft-multi-flex size=256   cores=2   config=minpool_spatz4_fpu  sim=sim log=false
+//           make -C spatz_apps/auto_benchmark clean fft-multi-flex size=256   cores=4   config=minpool_spatz4_fpu  sim=sim log=false // THIS ONE WORKED!
 // MemPool:  make -C spatz_apps/auto_benchmark clean fft-multi-flex size=2048  cores=16  config=mempool_spatz4_fpu  sim=sim log=false
 
 #include <stdio.h>
@@ -152,7 +153,7 @@ int main() {
   if (cid == 0) {
     // Dynamic memory allocation (sequential region)-----------------------
     printf("Using sequential region\n");
-    alloc_matrix(data, total_alloc_size, 4, 1); // In sequential region, with folding after 16 tile, copy 4 times
+    alloc_matrix(data, total_alloc_size, 2, 2); // In sequential region, with folding after 16 tile, copy 4 times
     printf("After alloc_matrix\n");
 
     for (uint32_t n_fft = 0; n_fft < num_fft; n_fft ++) {
@@ -170,8 +171,8 @@ int main() {
     printf("Data pointers:\n");
     for (uint32_t n_fft = 0; n_fft < num_fft; n_fft ++) {
       printf("samples[%u]: %p, buffer[%u]: %p, out[%u]: %p, twiddle_p1[%u]: %p, twiddle_p2[%u]: %p, core_offset[%u]: %p, store_idx[%u]: %p\n",
-             n_fft, samples[n_fft], n_fft, buffer[n_fft], n_fft, out[n_fft],
-             n_fft, twiddle_p1[n_fft], n_fft, twiddle_p2[n_fft],
+             n_fft, samples[n_fft],     n_fft, buffer[n_fft],     n_fft, out[n_fft],
+             n_fft, twiddle_p1[n_fft],  n_fft, twiddle_p2[n_fft],
              n_fft, core_offset[n_fft], n_fft, store_idx[n_fft]);
     }
   }
@@ -202,12 +203,16 @@ int main() {
       dma_memcpy_blocking(store_idx[n_fft],   store_idx_dram, (log2_nfft2-1) * (NFFTpc >> 1) * sizeof(uint16_t));
       dma_memcpy_blocking(core_offset[n_fft], coffset_dram,   active_cores * sizeof(uint32_t));
 
-      float *p2_twi = twiddle_p2[n_fft];
+      // Only copy twiddle_p2 once
       float *p2_twi_dram = twiddle_dram + (NTWI_P1<<1);
-      for (uint32_t i = 0; i < active_cores; i ++) {
-        dma_memcpy_blocking(p2_twi,  p2_twi_dram,   (NTWI_P2*2) * sizeof(float));
-        p2_twi += (NTWI_P2*2);
-      }
+      dma_memcpy_blocking(twiddle_p2[n_fft],  p2_twi_dram,   (NTWI_P2*2) * sizeof(float));
+
+      // float *p2_twi = twiddle_p2[n_fft];
+      // float *p2_twi_dram = twiddle_dram + (NTWI_P1<<1);
+      // for (uint32_t i = 0; i < active_cores; i ++) {
+      //   dma_memcpy_blocking(p2_twi,  p2_twi_dram,   (NTWI_P2*2) * sizeof(float));
+      //   p2_twi += (NTWI_P2*2);
+      // }
       printf("finish copy fft %u!\n", n_fft);
     #else
       printf("in !USE_DMA\n");
@@ -290,8 +295,6 @@ int main() {
     // each round will use half the twiddle than previous round
     // the first round needs re/im NFFT/2 twiddles
 
-    if (cid == 0) {printf("After fft_p1 \n");}
-
     src_p1 = (i & 1) ? samples[n_fft_id] : buffer[n_fft_id];
     buf_p1 = (i & 1) ? buffer[n_fft_id]  : samples[n_fft_id];
     // mempool_barrier(num_cores);
@@ -304,17 +307,17 @@ int main() {
   }
   
   mempool_barrier(num_cores);
-  if (cid == 0){
-    printf("Done with stage 1 of FFT\n");
-  }
 
   if (cid < tot_cores) {
     // Fall back into the single-core case
     // Each core just do a FFT on (NFFT >> stage_in_P1) data
     if (p2_switch) {
+      if (cid == 0) {printf("Before fft_p2 \n");}
       fft_p2(buf_p2, src_p2, twi_p2, out_p2, store_idx[n_fft_id], (NFFT>>log2_nfft1),
              NFFT, log2_nfft2, stride, log2_nfft1, NTWI_P2);
+      if (cid == 0) {printf("After fft_p2 \n");}
     } else {
+      //if (cid == 0) {printf("In else \n");}
       fft_p2(src_p2, buf_p2, twi_p2, out_p2, store_idx[n_fft_id], (NFFT>>log2_nfft1),
              NFFT, log2_nfft2, stride, log2_nfft1, NTWI_P2);
     }
