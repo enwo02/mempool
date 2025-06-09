@@ -19,8 +19,9 @@
 // KERNEL NOT WORKING ATM. Only started adjusting to FLEX, but not finished yet.
 
 // To run (if config not changed the clean can be removed): 
-// MinPool:  make -C spatz_apps/auto_benchmark clean fft-multi-flex size=256   cores=2   config=minpool_spatz4_fpu  sim=sim log=false
+// MinPool:  make -C spatz_apps/auto_benchmark clean fft-multi-flex size=256   cores=2   config=minpool_spatz4_fpu  sim=sim log=false // THIS ONE WORKED!
 //           make -C spatz_apps/auto_benchmark clean fft-multi-flex size=256   cores=4   config=minpool_spatz4_fpu  sim=sim log=false // THIS ONE WORKED!
+//           make -C spatz_apps/auto_benchmark clean fft-multi-flex size=512   cores=4   config=minpool_spatz4_fpu  sim=sim log=false
 // MemPool:  make -C spatz_apps/auto_benchmark clean fft-multi-flex size=2048  cores=16  config=mempool_spatz4_fpu  sim=sim log=false
 
 #include <stdio.h>
@@ -153,7 +154,7 @@ int main() {
   if (cid == 0) {
     // Dynamic memory allocation (sequential region)-----------------------
     printf("Using sequential region\n");
-    alloc_matrix(data, total_alloc_size, 2, 2); // In sequential region, with folding after 16 tile, copy 4 times
+    alloc_matrix(data, total_alloc_size, 4, 1); // In sequential region, with folding after 16 tile, copy 4 times
     printf("After alloc_matrix\n");
 
     for (uint32_t n_fft = 0; n_fft < num_fft; n_fft ++) {
@@ -303,19 +304,14 @@ int main() {
     p2_switch = (i & 1);
     // In first part of calculation, we need barrier after each round
     mempool_barrier(num_cores);
-    if (cid == 0) {printf("After barrier, end of loop \n");}
   }
-  
-  mempool_barrier(num_cores);
 
   if (cid < tot_cores) {
     // Fall back into the single-core case
     // Each core just do a FFT on (NFFT >> stage_in_P1) data
     if (p2_switch) {
-      if (cid == 0) {printf("Before fft_p2 \n");}
       fft_p2(buf_p2, src_p2, twi_p2, out_p2, store_idx[n_fft_id], (NFFT>>log2_nfft1),
              NFFT, log2_nfft2, stride, log2_nfft1, NTWI_P2);
-      if (cid == 0) {printf("After fft_p2 \n");}
     } else {
       //if (cid == 0) {printf("In else \n");}
       fft_p2(src_p2, buf_p2, twi_p2, out_p2, store_idx[n_fft_id], (NFFT>>log2_nfft1),
