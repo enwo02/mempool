@@ -101,8 +101,6 @@ int main() {
   uint32_t group_factor = num_cores; // MinPool=4, MemPool=64, TeraPool=128
   uint32_t num_partition = mempool_get_tile_count() / group_factor;
 
-  uint32_t tiles_per_partition = 1;
-
   if (cid == 0) {
     printf("In sp-fft-multi-flex script\n");
     printf("Heap start: 0x%8X\n", (uint32_t)&__heap_start);
@@ -140,12 +138,12 @@ int main() {
   // As we do num_fft FFTs in parallel, we need to multiply the total size
   //total_alloc_size *= num_fft;
 
-  if (cid == 0) {
-    printf("Total allocation size: %u elements\n", total_alloc_size);
-    printf("Samples size: %u, Buffer size: %u, Out size: %u, Twiddle P1 size: %u, Twiddle P2 size: %u, Core offset size: %u, Store index size: %u\n",
-           samples_size, buffer_size, out_size, twiddle_p1_size, twiddle_p2_size,
-           core_offset_size, store_idx_size);
-  }
+  // if (cid == 0) {
+  //   printf("Total allocation size: %u elements\n", total_alloc_size);
+  //   printf("Samples size: %u, Buffer size: %u, Out size: %u, Twiddle P1 size: %u, Twiddle P2 size: %u, Core offset size: %u, Store index size: %u\n",
+  //          samples_size, buffer_size, out_size, twiddle_p1_size, twiddle_p2_size,
+  //          core_offset_size, store_idx_size);
+  // }
 
   // Initialize multicore barrier
   mempool_barrier_init(cid);
@@ -154,7 +152,7 @@ int main() {
   if (cid == 0) {
     // Dynamic memory allocation (sequential region)-----------------------
     printf("Using sequential region\n");
-    alloc_matrix(data, total_alloc_size, 4, 1); // In sequential region, with folding after 16 tile, copy 4 times
+    alloc_matrix(data, total_alloc_size, num_cores/num_fft, num_fft); // In sequential region, with folding after 16 tiles, copy 4 times
     printf("After alloc_matrix\n");
 
     for (uint32_t n_fft = 0; n_fft < num_fft; n_fft ++) {
@@ -169,13 +167,13 @@ int main() {
       store_idx[n_fft]   = core_offset[n_fft] + core_offset_size;
     }
     // Print pointers for debugging
-    printf("Data pointers:\n");
-    for (uint32_t n_fft = 0; n_fft < num_fft; n_fft ++) {
-      printf("samples[%u]: %p, buffer[%u]: %p, out[%u]: %p, twiddle_p1[%u]: %p, twiddle_p2[%u]: %p, core_offset[%u]: %p, store_idx[%u]: %p\n",
-             n_fft, samples[n_fft],     n_fft, buffer[n_fft],     n_fft, out[n_fft],
-             n_fft, twiddle_p1[n_fft],  n_fft, twiddle_p2[n_fft],
-             n_fft, core_offset[n_fft], n_fft, store_idx[n_fft]);
-    }
+    // printf("Data pointers:\n");
+    // for (uint32_t n_fft = 0; n_fft < num_fft; n_fft ++) {
+    //   printf("samples[%u]: %p, buffer[%u]: %p, out[%u]: %p, twiddle_p1[%u]: %p, twiddle_p2[%u]: %p, core_offset[%u]: %p, store_idx[%u]: %p\n",
+    //          n_fft, samples[n_fft],     n_fft, buffer[n_fft],     n_fft, out[n_fft],
+    //          n_fft, twiddle_p1[n_fft],  n_fft, twiddle_p2[n_fft],
+    //          n_fft, core_offset[n_fft], n_fft, store_idx[n_fft]);
+    // }
   }
 
   // Reset timer
@@ -189,15 +187,12 @@ int main() {
       printf("n_fft: %u, num_fft: %u, active_cores: %u\n", n_fft, num_fft, active_cores);
       // DMA has a problem with copying unaligned L1 and L2 data
       // Twiddle's size may not be a power of 2, so we'd better use mannual copy instead of DMA
-      //printf("Will copy samples to L1\n");
       dma_memcpy_blocking(samples[n_fft],     samples_dram,   (NFFT*2) * sizeof(float));
-      //printf("Copied samples\n");
 
       // Not necessary, but can make sure address of samples, buffer and out are aligned
       dma_memcpy_blocking(buffer[n_fft],      buffer_dram,    (NFFT*2) * sizeof(float));
       dma_memcpy_blocking(out[n_fft],         buffer_dram,    (NFFT*2) * sizeof(float));
 
-    #ifdef USE_DMA
       //printf("in USE_DMA\n");
       //dma_memcpy_blocking(twiddle_p1[n_fft],  twiddle_dram,   (NTWI_P1*2) * sizeof(float));
       dma_memcpy_blocking(twiddle_p1[n_fft],  twiddle_dram,   (NTWI_P1*2) * sizeof(float));
@@ -215,42 +210,9 @@ int main() {
       //   p2_twi += (NTWI_P2*2);
       // }
       printf("finish copy fft %u!\n", n_fft);
-    #else
-      printf("in !USE_DMA\n");
-      if (CHECK)
-        printf("load twi part 1\n");
-      for (uint32_t i = 0; i < 2*NTWI_P1; i++) {
-        twiddle_p1[n_fft][i]   = twiddle_dram[i];
-      }
-    #endif
+
     }
 
-    #ifndef USE_DMA
-    if (cid < active_cores) {
-      if ((cid == 0) & CHECK) {
-        printf("load twi part 2\n");
-      }
-      for (uint32_t i = cid*(NTWI_P2*2); i < (cid+1)*(NTWI_P2*2); i++) {
-        // Each core has its own P2 twiddle copy to reduce bank conflicts
-        // parallel the load across multi cores
-        twiddle_p2[n_fft][i] = twiddle_dram[i + (NTWI_P1<<1)];
-      }
-    }
-
-    if (cid == 0) {
-      for (uint32_t i = 0; i < (log2_nfft2-1) * (NFFTpc >> 1); i++) {
-        // Each stages in phase 2 except last one need store index
-        store_idx[n_fft][i] = store_idx_dram[i];
-      }
-
-      for (uint32_t i = 0; i < active_cores; i++) {
-        // The offset of address used to calculate the pointer
-        core_offset[n_fft][i]    = coffset_dram[i];
-      }
-
-      printf("finish copy fft %u!\n", n_fft);
-    }
-    #endif
   }
 
   if (cid == 0) {
@@ -259,7 +221,6 @@ int main() {
 
   // Wait for all cores to finish
   mempool_barrier(num_cores);
-
 
   uint32_t n_fft_id  = cid / active_cores;
   uint32_t n_fft_cid = cid - active_cores * n_fft_id;
