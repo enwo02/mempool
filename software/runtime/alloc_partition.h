@@ -12,7 +12,7 @@
 
 // ------ Partition Status Info ------ //
 #define NUM_ELEMENTS_PER_ROW (BANKING_FACTOR * N_FPU * NUM_TILES) // Minpool: 16 * 4 = numberOfBanksPerTile * numberOfTiles 
-#define NUM_PART_REGION      (1)  // STILL HARDCODED, for dotp-dyn this is 2
+#define NUM_PART_REGION      (2)  // STILL HARDCODED, for dotp-dyn this is 2
 // extern uint32_t NUM_PART_REGION; // number of partition regions
 
 typedef struct {

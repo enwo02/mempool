@@ -1,0 +1,7 @@
+{
+    kernel: DOTP,
+    M: 4096,
+    prec: 32,
+    core: 4,
+    expand: 0
+}

@@ -66,12 +66,12 @@ static inline int fp_check(const float a, const float b) {
 // Start pointer for allocated data
 // The have to be defined outside main() so every core can access them
 float *volatile data[4] = {NULL}; // STILL HARDCODED
+float *volatile twiddle_p2[4] = {NULL};
 
 float *volatile samples[4] = {NULL};
 float *volatile buffer[4] = {NULL};
 float *volatile out[4] = {NULL};
 float *volatile twiddle_p1[4] = {NULL};
-float *volatile twiddle_p2[4] = {NULL};
 uint32_t *volatile core_offset[4] = {NULL};
 uint16_t *volatile store_idx[4] = {NULL};
 
@@ -102,10 +102,10 @@ int main() {
   uint32_t num_partition = mempool_get_tile_count() / group_factor;
 
   if (cid == 0) {
-    printf("In sp-fft-multi-flex script\n");
-    printf("Heap start: 0x%8X\n", (uint32_t)&__heap_start);
-    printf("Heap seq start: 0x%8X\n", (uint32_t)&__heap_seq_start);
-    printf("Heap end:   0x%8X\n", (uint32_t)&__l1_end);
+    // printf("In sp-fft-multi-flex script\n");
+    // printf("Heap start: 0x%8X\n", (uint32_t)&__heap_start);
+    // printf("Heap seq start: 0x%8X\n", (uint32_t)&__heap_seq_start);
+    // printf("Heap end:   0x%8X\n", (uint32_t)&__l1_end);
     // Initialize the allocator
     alloc_init(&alloc_l1, (void*)&__heap_start, (uint32_t)&__l1_end - (uint32_t)&__heap_start);
     // Initialize and reset the sequetial heap
@@ -125,15 +125,20 @@ int main() {
   uint32_t samples_size = NFFT * 2;
   uint32_t buffer_size = NFFT * 2;
   uint32_t out_size = NFFT * 2;
-  uint32_t twiddle_p1_size = NTWI_P1 * 2;
-  uint32_t twiddle_p2_size = NTWI_P2 * 2; // Could multiply by active_cores, but too big for now
+  uint32_t twiddle_p1_size = NTWI_P1*2;
+  uint32_t twiddle_p2_size = NTWI_P2*2;
   uint32_t core_offset_size = active_cores;
   uint32_t store_idx_size = (log2_nfft2 - 1) * (NFFTpc >> 1) /2; // 16-bit index, so divide by 2
 
   uint32_t total_alloc_size = samples_size + buffer_size + out_size +
-                              twiddle_p1_size + twiddle_p2_size +
+                              twiddle_p1_size + // twiddle_p2_size +
                               core_offset_size +
                               store_idx_size;
+
+  // Allocate memory for the data
+  total_alloc_size += 1023;
+  total_alloc_size /= 1024;
+  total_alloc_size *= 1024;
 
   // As we do num_fft FFTs in parallel, we need to multiply the total size
   //total_alloc_size *= num_fft;
@@ -151,9 +156,11 @@ int main() {
   // Allocate and copy the samles
   if (cid == 0) {
     // Dynamic memory allocation (sequential region)-----------------------
-    printf("Using sequential region\n");
+    // printf("Using sequential region\n");
     alloc_matrix(data, total_alloc_size, num_cores/num_fft, num_fft); // In sequential region, with folding after 16 tiles, copy 4 times
-    printf("After alloc_matrix\n");
+    alloc_matrix(twiddle_p2, ((twiddle_p2_size+1023)/1024)*1024, num_cores/num_fft, num_fft); // In sequential region, with folding after 16 tiles, copy 4 times
+    //alloc_matrix(twiddle_p2, twiddle_p2_size, 4, num_cores/4);          // Copy twiddle_p2 into every core
+    // printf("After alloc_matrix\n");
 
     for (uint32_t n_fft = 0; n_fft < num_fft; n_fft ++) {
       printf("Allocating data for fft %u at %p\n", n_fft, data[n_fft]);
@@ -162,18 +169,18 @@ int main() {
       buffer[n_fft]      = samples[n_fft]     + samples_size;
       out[n_fft]         = buffer[n_fft]      + buffer_size;
       twiddle_p1[n_fft]  = out[n_fft]         + out_size;
-      twiddle_p2[n_fft]  = twiddle_p1[n_fft]  + twiddle_p1_size;
-      core_offset[n_fft] = twiddle_p2[n_fft]  + twiddle_p2_size;
+      // twiddle_p2[n_fft]  = twiddle_p1[n_fft]  + twiddle_p1_size;
+      core_offset[n_fft] = twiddle_p1[n_fft]  + twiddle_p1_size;
       store_idx[n_fft]   = core_offset[n_fft] + core_offset_size;
     }
     // Print pointers for debugging
-    // printf("Data pointers:\n");
-    // for (uint32_t n_fft = 0; n_fft < num_fft; n_fft ++) {
-    //   printf("samples[%u]: %p, buffer[%u]: %p, out[%u]: %p, twiddle_p1[%u]: %p, twiddle_p2[%u]: %p, core_offset[%u]: %p, store_idx[%u]: %p\n",
-    //          n_fft, samples[n_fft],     n_fft, buffer[n_fft],     n_fft, out[n_fft],
-    //          n_fft, twiddle_p1[n_fft],  n_fft, twiddle_p2[n_fft],
-    //          n_fft, core_offset[n_fft], n_fft, store_idx[n_fft]);
-    // }
+    printf("Data pointers:\n");
+    for (uint32_t n_fft = 0; n_fft < num_fft; n_fft ++) {
+      printf("samples[%u]: %p, buffer[%u]: %p, out[%u]: %p, twiddle_p1[%u]: %p, twiddle_p2[%u]: %p, core_offset[%u]: %p, store_idx[%u]: %p\n",
+             n_fft, samples[n_fft],     n_fft, buffer[n_fft],     n_fft, out[n_fft],
+             n_fft, twiddle_p1[n_fft],  n_fft, twiddle_p2[n_fft],
+             n_fft, core_offset[n_fft], n_fft, store_idx[n_fft]);
+    }
   }
 
   // Reset timer
@@ -194,7 +201,7 @@ int main() {
       dma_memcpy_blocking(out[n_fft],         buffer_dram,    (NFFT*2) * sizeof(float));
 
       //printf("in USE_DMA\n");
-      //dma_memcpy_blocking(twiddle_p1[n_fft],  twiddle_dram,   (NTWI_P1*2) * sizeof(float));
+      //dma_memcpy_blocking(twiddle_p1[n_fft],  twiddle_dram,   (NTWI_P1) * sizeof(float));
       dma_memcpy_blocking(twiddle_p1[n_fft],  twiddle_dram,   (NTWI_P1*2) * sizeof(float));
       dma_memcpy_blocking(store_idx[n_fft],   store_idx_dram, (log2_nfft2-1) * (NFFTpc >> 1) * sizeof(uint16_t));
       dma_memcpy_blocking(core_offset[n_fft], coffset_dram,   active_cores * sizeof(uint32_t));
@@ -205,11 +212,11 @@ int main() {
 
       // float *p2_twi = twiddle_p2[n_fft];
       // float *p2_twi_dram = twiddle_dram + (NTWI_P1<<1);
-      // for (uint32_t i = 0; i < active_cores; i ++) {
+      // for (uint32_t i = 0; i < active_cores/4; i ++) {
       //   dma_memcpy_blocking(p2_twi,  p2_twi_dram,   (NTWI_P2*2) * sizeof(float));
       //   p2_twi += (NTWI_P2*2);
       // }
-      printf("finish copy fft %u!\n", n_fft);
+      // printf("finish copy fft %u!\n", n_fft);
 
     }
 
@@ -230,7 +237,7 @@ int main() {
   float *buf_p2 = buffer[n_fft_id]  + n_fft_cid * NFFTpc;
   // Let each core has its own twiddle copy to reduce bank conflicts
   // TODO: Optimize for MemPool data layout
-  // float *twi_p2 = twiddle_p2[n_fft_id] + n_fft_cid * (NTWI_P2<<1);
+  //float *twi_p2 = twiddle_p2[n_fft_id] + n_fft_cid * (NTWI_P2<<1);
   float *twi_p2 = twiddle_p2[n_fft_id];
   float *out_p2 = out[n_fft_id] + core_offset[n_fft_id][n_fft_cid];
 
