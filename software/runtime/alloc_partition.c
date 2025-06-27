@@ -19,7 +19,7 @@ extern partition_status_t volatile partition_status[NUM_PART_REGION];
 // @inp: (uint32_t)            size         --- size of the single allocated matrix
 // @inp: (uint32_t)            num_matrix   --- How many mtrices in this region
 // @inp: (int32_t* volitile *) target       --- Where to store this pointer
-// @inp: (uint32_t)            group_factor --- GF_A/B/C
+// @inp: (uint32_t)            group_factor --- GF_A/B/C (folding after how many tiles)
 void alloc_matrix (float *volatile * target, uint32_t size, uint32_t group_factor, uint32_t num_matrix){
     printf("In alloc_matrix\n");
     // 1. Get allocator for sequential Heap region
