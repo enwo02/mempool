@@ -36,6 +36,9 @@
 #include "dma.h"
 #endif
 
+#include "alloc_partition.h"
+partition_status_t volatile partition_status[NUM_PART_REGION] __attribute__((section(".l1")));
+
 // Initialize the matrices
 void init_matrix(float *matrix, const float *src,
                  const uint32_t rows_start, const uint32_t rows_end,

@@ -152,6 +152,38 @@ def gemv(a, b):
     print(a.shape , b.shape)
     return torch.matmul(a, b)
 
+# Add function to reshuffle here
+def reshuffle(mat, cores, M, N):
+    """
+    Re-order a transposed matrix so the data for each core (m_core columns)
+    is stored in one contiguous stripe.
+
+    Parameters
+    ----------
+    mat :                               # shape (N, M) – already transposed
+    cores : int                         # number of HW cores
+    M : int                             # number of rows in the original matrix
+    N : int                             # number of columns in the original matrix
+
+    Returns
+    -------
+    mat :                               # Reshuffled matrix (flattened)
+    """
+    m_core = M // cores
+
+    output_matrix = []
+    offset = 0
+    for c in range(cores):
+        array_of_one_core = []
+        for n in range(N):
+            array_of_one_core.append(mat[n, offset:offset + m_core])
+        
+        output_matrix.append(np.concatenate(array_of_one_core))
+        offset += m_core
+
+    return np.array(output_matrix)
+
+
 def main():
 
     parser = argparse.ArgumentParser(description="Generate data for kernels")
@@ -179,6 +211,9 @@ def main():
 
     # Store A in col major format
     mat_A = mat_A.T
+
+    # Call function to reshuffle the data
+    mat_A = reshuffle(mat_A, param["CORES"], param["M"], param["N"])
 
     kwargs = {
         "A": mat_A,

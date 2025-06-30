@@ -74,11 +74,14 @@ void gemv_v32b_m4(float *a, float* b, float* c, uint32_t M, uint32_t M_core, uin
   float *c_ = c;
   
   do {
+    // Set vector length
     asm volatile("vsetvli %0, %1, e32, m4, ta, ma" : "=r"(vl) : "r"(avl));
+
+    // For each column in N
     for (uint32_t col = 0; col < N; col+=2) {
       // Load chunk a
       asm volatile("vle32.v v0, (%0)" ::"r"(a_));
-      a_ += M;
+      a_ += vl;
 
       // Multiply and accumulate
       if (col == 0) {
@@ -90,7 +93,7 @@ void gemv_v32b_m4(float *a, float* b, float* c, uint32_t M, uint32_t M_core, uin
 
       // Load chunk a
       asm volatile("vle32.v v8, (%0)" ::"r"(a_));
-      a_ += M;
+      a_ += vl;
 
       // Multiply and accumulate
       if (col == 0) {
@@ -103,10 +106,10 @@ void gemv_v32b_m4(float *a, float* b, float* c, uint32_t M, uint32_t M_core, uin
     }
     asm volatile("vfadd.vv v12, v12, v4");
     asm volatile("vse32.v v12, (%0)" ::"r"(c_));
-    avl -= vl;
+    avl -= vl * N;
     c_ += vl;
     b_ = b;
-    a_ = a + avl;
+    // a_ += vl;
   } while (avl > 0);
   
 }

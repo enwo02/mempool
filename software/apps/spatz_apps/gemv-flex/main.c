@@ -15,9 +15,9 @@
 // limitations under the License.
 
 // To run (if config not changed the clean can be removed): 
-// MinPool:  
-// MemPool:  make -C spatz_apps/auto_benchmark clean gemv config=mempool_spatz4_fpu cores=64 size=4096 size_B=32 log=false sim=sim multiB=4
-// TeraPool: 
+// MinPool:  make -C spatz_apps/auto_benchmark clean gemv-flex config=minpool_spatz4_fpu cores=4  size=256  size_B=32 log=false sim=sim multiB=1
+// MemPool:  make -C spatz_apps/auto_benchmark clean gemv-flex config=mempool_spatz4_fpu cores=64 size=4096 size_B=32 log=false sim=sim multiB=4
+// TeraPool: make -C spatz_apps/auto_benchmark clean gemv-flex config=terapool_spatz8_fpu cores=128 size=4096 size_B=32 log=false sim=sim multiB=4
 
 
 // Author: Diyou Shen,              ETH Zurich <dishen@iis.ee.ethz.ch>
@@ -159,19 +159,38 @@ int main() {
     printf("finish copy\n");
 
   unsigned int m_core = gemv_l.M / active_cores;
+  unsigned int n_core = gemv_l.N / active_cores;
+  unsigned int elements_per_core = gemv_l.N *gemv_l.M / active_cores; // Number of elements per core
 
   // Calculate internal pointers
-  T *a_core      = a + m_core * cid;
+  T *a_core      = a + elements_per_core * cid;
   T *b_core      = b[cid * multiB / num_cores];
   T *result_core = result + m_core * cid;
+
+  for (uint32_t i = 0; i < active_cores; ++i) {
+    if (cid == i) {
+      a_core = a + elements_per_core * i;
+    } else {
+      // Add an idle delay here to avoid triggering bugs in barrier
+      mempool_wait(100);
+    }
+    mempool_barrier(num_cores);
+  }
 
   #ifdef DEBUG
   if (cid == 0)
     printf("m_core:%x\n", m_core);
+  if (cid == 0)
+    printf("elements_per_core:%x\n", elements_per_core);
 
   for (uint32_t i = 0; i < active_cores; ++i) {
     if (cid == i) {
+      // a_core      = a + elements_per_core * i;
       printf("Core%u,A:%p,C:%p\n", i, a_core, result_core);
+      printf("a: %p\n", a);
+      printf("elements_per_core: %u\n", elements_per_core);
+      // T *a_temp = a + elements_per_core * i;
+      // printf("a_temp: %p\n", a_temp);
     } else {
       // Add an idle delay here to avoid triggering bugs in barrier
       mempool_wait(100);
@@ -200,7 +219,7 @@ int main() {
         if (unroll_m)
           gemv_v32b_m4_unroll_M(a_core, b, result_core, gemv_l.M, m_core, gemv_l.N);
         else
-          gemv_v32b_m4(a_core, b, result_core, gemv_l.M, m_core, gemv_l.N);
+          gemv_v32b_m4(a_core, b, result_core, gemv_l.M, elements_per_core, gemv_l.N);
       else if (sizeof(T) == 2)
         gemv_v16b_m4(a_core, b, result_core, gemv_l.M, m_core, gemv_l.N);
       else
@@ -236,6 +255,8 @@ int main() {
     printf("The performance is %u OP/1000cycle (%u%%o utilization).\n",
            performance, utilization);
   }
+
+  mempool_barrier(num_cores);
 
   if (is_core_active) {
     for (uint32_t i = 0; i < m_core; i++) {
